@@ -44,7 +44,7 @@ export function RecordingPage({
         <CriteriaScore criteria={criteria} />
         <div className="mt-10 flex items-start gap-4">
           <span className="inline-flex h-10 shrink-0 items-center rounded-full bg-white px-4 text-sm font-medium text-black">
-            Next
+            What to fix next pitch:
           </span>
           <p className="min-w-0 pt-2 text-[clamp(1.05rem,2vw,1.35rem)] leading-snug text-white">
             {recommendation || "—"}
