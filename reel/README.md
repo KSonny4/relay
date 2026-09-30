@@ -7,7 +7,7 @@ Petr Kubelka's pitch deck for Relay. The room sees short slides: a few words eac
 | Offline | https://relay-reel.onrender.com | https://relay-reel.onrender.com/control |
 | Online, with the live app beside the slides | https://relay-reel-live.onrender.com | https://relay-reel-live.onrender.com/control |
 
-Slides 1 to 5 are the one-minute talk. Slides 6 to 8 continue it to two minutes: how a take works, the technologies, and what's next. Petr stops after slide 5 when he has one minute. The online deck adds one slide in front ("Recording starts on the next slide."), so it has nine.
+Slides 1 to 5 are the one-minute talk: one rubric, judged live, the same three questions every time, one line to fix, and the take kept. Petr stops after slide 5 when he has one minute. Slides 6 to 8 continue it to two minutes: how a take works, the technologies, and what's next (any spoken words, against criteria you set; a corporate meeting is the example). The online deck adds one slide in front ("Recording starts on the next slide."), so it has nine.
 
 ## Files
 
@@ -46,7 +46,7 @@ The live app runs beside the slides with microphone access. When the presenter l
 
 Wide 16:9 frame, black type on white. On other screen shapes the frame letterboxes instead of reflowing.
 
-The voiceover for slides 1 to 5 is the "60 seconds" section of the pitch (`docs/pitch.md` in the project store), word for word, one slide per timestamp (0:00, 0:10, 0:32, 0:42, 0:50). The slides show only the main point of each.
+The phone page is the voiceover, in `slides.js`. Slides 1 to 5 say what is live today: one rubric, scored while he talks, execution times two plus usefulness plus clarity out of 20, one line to fix, the take kept, and the same questions every time. Slides 6 to 8 say how a take works, which technologies do that job, and what is next: criteria you set, any spoken words, a corporate meeting as the example, this hackathon as the first use. The slides show only the main point of each.
 
 From slide 2 on (slide 3 online), the score card shows the three judging criteria, each 1 to 5:
 
