@@ -19,43 +19,43 @@ export const SCORE_QUESTIONS = [
   {
     id: "execution",
     instructions:
-      "How well does this pitch show what was actually built? Small talk scores at the bottom. A real pitch that shows what was built can still score high.",
+      "How well does this pitch show what was actually built? Small talk scores at the bottom. If the words do not say what was built, the score is 1 or 2, not 4 or 5. A 5 means a listener could act and you would not write a fix for this criterion. Do not give a 5 on a criterion you would still criticize. A real pitch that says what was built can still score high.",
     criteria: [
       NOT_A_PITCH,
-      "The pitch mentions a build, but not what it does",
-      "A listener could tell what was built with effort",
-      "A listener can tell what was built",
-      "A listener can tell what was built and that it works",
+      "The words do not say what was built",
+      "A listener could tell what was built only with effort",
+      "The words say what was built",
+      "The words say what was built, a listener could act, and there is nothing to fix",
     ],
   },
   {
     id: "usefulness",
     instructions:
-      "Is the problem real, and would someone use this? Small talk scores at the bottom. A real pitch about a problem someone would use can still score high.",
+      "Is the problem real, and would someone use this? Small talk scores at the bottom. If the words do not say who it is for, the score is 1 or 2, not 4 or 5. A 5 means a listener could act and you would not write a fix for this criterion. Do not give a 5 on a criterion you would still criticize. A real pitch that says who it is for can still score high.",
     criteria: [
       NOT_A_PITCH,
-      "The problem is too vague to use",
-      "Someone might use this if they already understood the problem",
-      "The problem is real, and someone would use this",
-      "The problem is real, and it is clear who would use this",
+      "The words do not say who it is for",
+      "The problem is too vague to know who it is for",
+      "The words say who it is for",
+      "The words say who it is for, a listener could act, and there is nothing to fix",
     ],
   },
   {
     id: "clarity",
     instructions:
-      "Can we understand what this is and why it matters? Small talk scores at the bottom. A real pitch that makes this clear can still score high.",
+      "Can we understand what this is and why it matters? Small talk scores at the bottom. If the words do not say why it matters, the score is 1 or 2, not 4 or 5. A 5 means a listener could act and you would not write a fix for this criterion. Do not give a 5 on a criterion you would still criticize. A real pitch that says why it matters can still score high.",
     criteria: [
       NOT_A_PITCH,
-      "What this is, and why it matters, is vague",
-      "A listener could understand it with effort",
-      "A listener understands what this is and why it matters",
-      "A listener knows what this is, why it matters, and what to try next",
+      "The words do not say why it matters",
+      "Why it matters is vague",
+      "The words say why it matters",
+      "The words say why it matters, a listener could act, and there is nothing to fix",
     ],
   },
 ];
 
 export const CRITIC_INSTRUCTIONS =
-  "You are a critic who helps the speaker. Reply with one sentence. If the words never say what was built, who it is for, and what to try next, the sentence says that. Do not praise a greeting. Do not give generic marketing advice. No other prose.";
+  'You are a critic who helps the speaker. Reply with JSON only: {"recommendation":"one sentence or empty","omit":["execution","usefulness","clarity"],"fix":["execution","usefulness","clarity"]}. Put execution in omit when the words do not say what was built, usefulness when they do not say who it is for, and clarity when they do not say why it matters. An omitted criterion is 1 or 2, not 4 or 5. Put a criterion in fix when you would still write a fix for it. A 5 means a listener could act and you would not write a fix for that criterion. Do not give a 5 on a criterion you would still criticize. If nothing is omitted and you would not write a fix, recommendation is empty and omit and fix are empty. If the words never say what was built, who it is for, or why it matters, the sentence says that. Do not praise a greeting. Do not give generic marketing advice. No other prose.';
 
 const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/systemone";
@@ -544,15 +544,83 @@ async function callJev(fetchImpl, env, transcript) {
   return mapMarks(jev.json.answers);
 }
 
+const MARK_NAMES = ["execution", "usefulness", "clarity"];
+
 export function perfectMarks(marks) {
   return marks.execution === 5 && marks.usefulness === 5 && marks.clarity === 5;
 }
 
+function legendFor(name, value) {
+  const question = SCORE_QUESTIONS.find((item) => item.id === name);
+  return question.criteria[value - 1];
+}
+
+function omissionsInSentence(sentence) {
+  const omit = [];
+  if (/what was built|what (?:this|it|relay) is/i.test(sentence)) omit.push("execution");
+  if (/who it is for|who this is for|who it's for/i.test(sentence)) omit.push("usefulness");
+  if (/why it matters/i.test(sentence)) omit.push("clarity");
+  return omit;
+}
+
+export function parseCritic(content) {
+  const trimmed = String(content ?? "").trim();
+  let json = null;
+  try {
+    json = JSON.parse(trimmed);
+  } catch {
+    json = null;
+  }
+  const names = (value) =>
+    Array.isArray(value) ? value.filter((name) => MARK_NAMES.includes(name)) : [];
+  if (!json || typeof json !== "object" || Array.isArray(json)) {
+    const recommendation = trimmed ? firstSentence(trimmed) : "";
+    return {
+      recommendation,
+      omit: omissionsInSentence(recommendation),
+      fix: [],
+    };
+  }
+  const omit = names(json.omit);
+  const recommendation = typeof json.recommendation === "string" ? json.recommendation.trim() : "";
+  return {
+    recommendation: recommendation ? firstSentence(recommendation) : "",
+    omit,
+    fix: names(json.fix).filter((name) => !omit.includes(name)),
+  };
+}
+
+export function applyCritic(marks, critic) {
+  const next = {
+    execution: marks.execution,
+    usefulness: marks.usefulness,
+    clarity: marks.clarity,
+  };
+  for (const name of critic.omit ?? []) {
+    if (MARK_NAMES.includes(name)) next[name] = Math.min(next[name], 2);
+  }
+  for (const name of critic.fix ?? []) {
+    if (MARK_NAMES.includes(name)) next[name] = Math.min(next[name], 4);
+  }
+  let recommendation = critic.recommendation ?? "";
+  if (recommendation && perfectMarks(next)) next.execution = Math.min(next.execution, 4);
+  let weakest = "execution";
+  for (const name of ["usefulness", "clarity"]) {
+    if (next[name] < next[weakest]) weakest = name;
+  }
+  if (perfectMarks(next)) recommendation = "";
+  return {
+    ...marks,
+    ...next,
+    score: next.execution * 2 + next.usefulness + next.clarity,
+    level: legendFor(weakest, next[weakest]),
+    confidence: marks.confidence,
+    recommendation,
+  };
+}
+
 async function scoreTranscript(fetchImpl, env, transcript) {
   const mapped = await callJev(fetchImpl, env, transcript);
-  if (perfectMarks(mapped)) {
-    return { ...mapped, recommendation: "" };
-  }
   if (!env.OPENAI_API_KEY) {
     throw httpError(503, "OpenAI is not configured. Set OPENAI_API_KEY.");
   }
@@ -577,7 +645,7 @@ async function scoreTranscript(fetchImpl, env, transcript) {
     throw httpError(502, "OpenAI request failed");
   }
 
-  return { ...mapped, recommendation: firstSentence(content) };
+  return applyCritic(mapped, parseCritic(content));
 }
 
 async function parseJsonBody(req) {
