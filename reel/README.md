@@ -18,7 +18,7 @@ Space pauses and resumes; on the last frame it restarts. The thin bar at the top
 
 ## What is on screen
 
-On the left, the words are the "60 seconds" section of the pitch (`docs/pitch.md` in the project store), word for word. The pitch's timestamps are the scene cuts: 0:00, 0:10, 0:32, 0:42 and 0:50. Sentences inside a section appear one at a time, spaced by word count. The current sentence is large and bright; earlier sentences in the same section shrink and dim. The script lives in the `PITCH` block in `index.html`.
+On the left, the words are the "60 seconds" section of the pitch (`docs/pitch.md` in the project store), word for word. The pitch's timestamps are the scene cuts: 0:00, 0:10, 0:32, 0:42 and 0:50. Sentences inside a section appear one at a time, spaced by word count. Black type on white, laid out for a 16:9 desktop screen. The current sentence is large and black; earlier sentences in the same section shrink and turn grey. The script lives in the `PITCH` block in `index.html`.
 
 On the right, from 0:10, the product works beside three judging outcomes:
 
