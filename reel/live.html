@@ -5,553 +5,70 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Petr Kubelka · Relay · Live</title>
 <style>
-  :root {
-    --bg: #ffffff;
-    --fg: #0a0a0a;
-    --muted: #555555;
-    --dim: #737373;
-    --soft: #f3f3f3;
-    --line: #e2e2e2;
-    /* 1% of the height of a 16:9 frame that fits the window. */
-    --u: min(1vh, 0.5625vw);
-  }
+  :root { --bg: #ffffff; --fg: #0a0a0a; --muted: #555555; --line: #e2e2e2; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; }
   body {
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-size: calc(var(--u) * 3);
-    line-height: 1.15;
-    -webkit-font-smoothing: antialiased;
-    cursor: pointer; user-select: none;
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(420px, 34vw, 660px);
   }
-
-  #progress { position: fixed; top: 0; left: 0; height: 6px; width: 0; background: var(--fg); z-index: 10; transition: width .4s ease; }
-
-  #stage {
-    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    width: calc(var(--u) * 177.78); height: calc(var(--u) * 100);
-    display: grid; grid-template-columns: minmax(0, 1fr) calc(var(--u) * 38) calc(var(--u) * 58);
-    column-gap: calc(var(--u) * 3.5); align-items: center;
-    padding: calc(var(--u) * 8) calc(var(--u) * 6) calc(var(--u) * 10) calc(var(--u) * 8);
+  iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--bg); }
+  #app { display: grid; grid-template-rows: auto minmax(0, 1fr); border-left: 2px solid var(--fg); min-height: 0; }
+  #app header {
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    padding: 12px 20px; border-bottom: 2px solid var(--line);
+    font-size: 15px; font-weight: 800; letter-spacing: .02em;
   }
-  #words { margin-right: calc(var(--u) * 1.5); }
-
-  /* Spoken lines */
-  #words { display: flex; flex-direction: column; justify-content: center; gap: calc(var(--u) * 2.2); min-height: 0; }
-  .lockup { display: grid; gap: calc(var(--u) * 1); margin-bottom: calc(var(--u) * 1.5); }
-  .lockup .name { font-size: calc(var(--u) * 4.4); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-  .lockup .brand { font-size: calc(var(--u) * 15); font-weight: 900; letter-spacing: -0.045em; line-height: .9; }
-  .line {
-    font-size: calc(var(--u) * var(--fs, 7)); font-weight: 800; letter-spacing: -0.025em; line-height: 1.08;
-    text-wrap: balance;
-    animation: rise .5s ease both; animation-delay: calc(var(--i, 0) * 90ms);
-  }
-  .line .em { font-weight: 900; text-decoration: underline; text-decoration-thickness: .07em; text-underline-offset: .14em; }
-  body.still .line { animation: none; }
-  @keyframes rise { from { opacity: 0; transform: translateY(calc(var(--u) * 2.5)); } }
-
-  /* Product */
-  #app {
-    background: var(--bg); border: 2px solid var(--line); border-radius: calc(var(--u) * 2.4);
-    box-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 6) rgba(0, 0, 0, .08);
-    display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; padding-bottom: calc(var(--u) * 3);
-    max-height: calc(var(--u) * 82);
-    opacity: 0; transform: translateY(calc(var(--u) * 3));
-    transition: opacity .5s ease, transform .5s ease;
-  }
-  body.app-on #app { opacity: 1; transform: none; }
-  .bar {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: calc(var(--u) * 1.8) calc(var(--u) * 3); border-bottom: 2px solid var(--line);
-    font-size: calc(var(--u) * 2.8); font-weight: 800;
-  }
-  .rec { display: inline-flex; align-items: center; gap: calc(var(--u) * 1.2); color: var(--muted); }
-  .rec i { width: calc(var(--u) * 2); height: calc(var(--u) * 2); border-radius: 50%; background: var(--fg); animation: pulse 1.2s ease-in-out infinite; }
+  #app header a { color: var(--muted); font-weight: 600; text-decoration: none; }
+  #app header a:hover { color: var(--fg); text-decoration: underline; }
+  .dot { display: inline-flex; align-items: center; gap: 8px; }
+  .dot i { width: 10px; height: 10px; border-radius: 50%; background: var(--fg); animation: pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .25; } }
-
-  .criteria { padding: calc(var(--u) * 2.6) calc(var(--u) * 3) calc(var(--u) * .6); display: grid; gap: calc(var(--u) * 1.8); }
-  .crit {
-    display: grid; grid-template-columns: calc(var(--u) * 19) 1fr calc(var(--u) * 12);
-    align-items: center; gap: calc(var(--u) * 1.6);
-    font-size: calc(var(--u) * 3); font-weight: 800; color: var(--line);
-    transition: color .4s ease;
-  }
-  .crit.on { color: var(--fg); }
-  .crit .w { font-weight: 700; color: var(--dim); font-size: .8em; margin-left: .3em; }
-  .crit:not(.on) .w { color: var(--line); }
-  .crit .val { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: calc(var(--u) * 4.2); font-weight: 900; }
-  .crit .val small { font-size: .5em; font-weight: 800; color: var(--dim); }
-  .pips { display: grid; grid-template-columns: repeat(5, 1fr); gap: calc(var(--u) * .7); }
-  .pips b { height: calc(var(--u) * 1.6); border-radius: 999px; background: var(--line); overflow: hidden; position: relative; }
-  .pips b::after { content: ""; position: absolute; inset: 0; width: var(--fill, 0%); background: var(--fg); transition: width .6s ease; }
-
-  .total {
-    margin: calc(var(--u) * 1.4) calc(var(--u) * 3) 0; padding-top: calc(var(--u) * 2);
-    border-top: 2px solid var(--fg);
-    display: none; grid-template-columns: minmax(0, 1fr); gap: calc(var(--u) * 1.4);
-  }
-  body.total-on .total { display: grid; }
-  .sum { font-size: calc(var(--u) * 3.4); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; white-space: nowrap; }
-  .sum span { color: var(--dim); font-weight: 700; }
-  .sum small { display: block; font-size: calc(var(--u) * 2.3); font-weight: 700; color: var(--dim); }
-  .score { display: flex; align-items: baseline; gap: calc(var(--u) * 1.2); font-variant-numeric: tabular-nums; }
-  .score .num { font-size: calc(var(--u) * 12); font-weight: 900; letter-spacing: -0.05em; line-height: .85; }
-  .score .of { font-size: calc(var(--u) * 4.4); font-weight: 800; color: var(--muted); }
-
-  .fix {
-    margin: calc(var(--u) * 2.4) calc(var(--u) * 3) 0;
-    border-left: calc(var(--u) * 0.8) solid var(--fg); background: var(--soft);
-    padding: calc(var(--u) * 1.2) calc(var(--u) * 1.8);
-    font-size: calc(var(--u) * 2.6); font-weight: 700; line-height: 1.3;
-    display: none;
-  }
-  body.fix-on .fix { display: block; }
-  .fix-label { display: block; font-size: calc(var(--u) * 2.1); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-bottom: calc(var(--u) * .5); }
-  .fix.none #fix-text { color: var(--dim); }
-
-  /* Live miniature: real microphone, real transcript */
-  #mini {
-    background: var(--bg); border: 2px solid var(--line); border-radius: calc(var(--u) * 2.4);
-    box-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 6) rgba(0, 0, 0, .08);
-    height: calc(var(--u) * 74); display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
-    overflow: hidden; cursor: default; user-select: text;
-  }
-  #mini .bar { font-variant-numeric: tabular-nums; }
-  #mini-clock { color: var(--muted); }
-  #mini.on #mini-clock { color: var(--fg); }
-  #mini-text {
-    overflow-y: auto; padding: calc(var(--u) * 2.4) calc(var(--u) * 3);
-    font-size: calc(var(--u) * 2.6); font-weight: 650; line-height: 1.38;
-    scrollbar-width: none;
-  }
-  #mini-text::-webkit-scrollbar { display: none; }
-  #mini-text .hint { color: var(--dim); font-weight: 600; }
-  #mini-text .nw { animation: word .45s ease both; }
-  @keyframes word { from { opacity: 0; } }
-  .mini-foot {
-    border-top: 2px solid var(--line); padding: calc(var(--u) * 2) calc(var(--u) * 3);
-    display: grid; justify-items: start; gap: calc(var(--u) * 1.4);
-  }
-  #mini-btn {
-    display: inline-flex; align-items: center; gap: calc(var(--u) * 1.2);
-    height: calc(var(--u) * 6.4); padding: 0 calc(var(--u) * 2.6) 0 calc(var(--u) * 2);
-    border: 2px solid var(--fg); border-radius: 999px; background: var(--fg); color: var(--bg);
-    font: inherit; font-size: calc(var(--u) * 2.7); font-weight: 800; cursor: pointer;
-  }
-  #mini-btn i { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); border-radius: 50%; background: var(--bg); }
-  #mini.on #mini-btn { background: var(--bg); color: var(--fg); }
-  #mini.on #mini-btn i { border-radius: calc(var(--u) * .4); background: var(--fg); }
-  #mini-btn:disabled { border-color: var(--line); background: var(--line); color: var(--muted); cursor: default; }
-  #mini-btn:disabled i { background: var(--muted); }
-  #mini-status { font-size: calc(var(--u) * 2.2); font-weight: 700; color: var(--muted); line-height: 1.3; }
-  #mini-status.err { color: var(--fg); }
-
-  #corner {
-    position: absolute; left: calc(var(--u) * 8); bottom: calc(var(--u) * 3.4);
-    font-size: calc(var(--u) * 2.8); font-weight: 800; letter-spacing: .04em; color: var(--muted);
-  }
-  #corner b { color: var(--fg); font-weight: 900; }
-  body.first #corner { opacity: 0; }
-
-  #nav {
-    position: absolute; right: calc(var(--u) * 6); bottom: calc(var(--u) * 2.6);
-    display: flex; align-items: center; gap: calc(var(--u) * 1.6);
-    font-size: calc(var(--u) * 2.6); font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums;
-  }
-  #nav button {
-    width: calc(var(--u) * 5.2); height: calc(var(--u) * 5.2); border-radius: 50%;
-    border: 2px solid var(--line); background: var(--bg); color: var(--fg);
-    font: inherit; font-size: calc(var(--u) * 3); line-height: 1; cursor: pointer;
-  }
-  #nav button:hover { border-color: var(--fg); }
-  #nav button:disabled { color: var(--line); border-color: var(--line); cursor: default; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .line { animation: none; }
-    .rec i { animation: none; }
-    #mini-text .nw { animation: none; }
-  }
+  @media (prefers-reduced-motion: reduce) { .dot i { animation: none; } }
 </style>
 </head>
-<body class="first">
-<div id="progress" aria-hidden="true"></div>
-
-<main id="stage">
-  <div id="words" aria-live="polite"></div>
-  <section id="mini" aria-label="Relay live transcript">
-    <div class="bar"><span>Transcript</span><span id="mini-clock">0:00</span></div>
-    <div id="mini-text" aria-live="polite"><p class="hint">Press Record and speak. Your words appear here as Relay hears them.</p></div>
-    <div class="mini-foot">
-      <button type="button" id="mini-btn"><i></i><span id="mini-label">Record</span></button>
-      <div id="mini-status">Microphone off</div>
-    </div>
-  </section>
-  <section id="app" aria-label="Relay">
-    <div class="bar"><span>Relay</span><span class="rec"><i></i>Live</span></div>
-    <div class="criteria" id="criteria"></div>
-    <div class="total">
-      <div class="sum" id="sum"></div>
-      <div class="score"><span class="num" id="total">–</span><span class="of">/ 20</span></div>
-    </div>
-    <div class="fix"><span class="fix-label">Line to fix</span><span id="fix-text"></span></div>
-  </section>
-  <div id="corner">Petr Kubelka · <b>Relay</b></div>
-  <nav id="nav" aria-label="Scenes">
-    <button type="button" id="prev" aria-label="Previous scene">‹</button>
-    <span id="count">1 / 5</span>
-    <button type="button" id="next" aria-label="Next scene">›</button>
-  </nav>
-</main>
-
+<body>
+<iframe id="deck" title="Relay pitch slides" src="deck.html"></iframe>
+<section id="app" aria-label="Relay live app">
+  <header>
+    <span class="dot"><i></i>Relay · Live app</span>
+    <a href="https://relay-web-s1d6.onrender.com" target="_blank" rel="noopener">relay-web-s1d6.onrender.com</a>
+  </header>
+  <iframe id="web" title="Relay live app" src="https://relay-web-s1d6.onrender.com/" allow="microphone; clipboard-write"></iframe>
+</section>
 <script>
 (function () {
-  // The spoken script, verbatim from the "60 seconds" section of pitch.md,
-  // one scene per timestamp. *Asterisks* mark emphasised words.
-  var SCENES = [
-    [
-      'Hackathon teams find out their pitch failed only after they sit down.',
-      'By then the judges have moved on, and nobody tells you which sentence lost them.'
-    ],
-    [
-      '*Relay* fixes that before you stand up.',
-      'You say your pitch out loud, and Relay gives you one number out of ten for a single question: how well does this pitch explain an idea that helps developers?',
-      'Then it gives you *one line to fix.*',
-      'Not a list.',
-      'One line.',
-      'You fix that line, say it again, and the number climbs.'
-    ],
-    [
-      'That is *working right now.*',
-      'The live app is beside me, and it is scoring these exact words while I say them.',
-      'I am pitching *Relay* on *Relay*.'
-    ],
-    [
-      'Today I am building it.',
-      'Next, every team at this hackathon rehearses with it before they present.'
-    ],
-    [
-      'So here is what to try next: say your pitch to Relay, fix the one line it gives you, and *walk in already knowing your number.*'
-    ]
-  ];
+  var deck = document.getElementById('deck');
+  var web = document.getElementById('web');
+  var NAV = ['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'Home', 'End'];
 
-  // Jev (jev-latest) scored these exact words once per judging criterion on a
-  // 1–5 scale: Execution 4.55, Usefulness 4.85, Clarity 4.97. Shown to one decimal.
-  // `from` is the scene where each criterion is first shown.
-  var CRITERIA = [
-    { name: 'Execution', weight: 2, score: 4.6, from: 2 },
-    { name: 'Usefulness', weight: 1, score: 4.9, from: 1 },
-    { name: 'Clarity', weight: 1, score: 5.0, from: 1 }
-  ];
-  var TOTAL_FROM = 2;
-  var FIX_FROM = 1;
-  // Relay's one-sentence improvement for these exact words.
-  var FIX_TEXT = 'Highlight the unique value proposition of Relay by emphasizing how it not only improves pitch success rates but also enhances overall communication skills for developers.';
+  // Open the slides on the scene named in this page's address, e.g. #3.
+  if (/^#\d+$/.test(location.hash)) deck.src = 'deck.html' + location.hash;
 
-  var body = document.body;
-  var wordsEl = document.getElementById('words');
-  var critEl = document.getElementById('criteria');
-  var sumEl = document.getElementById('sum');
-  var totalEl = document.getElementById('total');
-  var progress = document.getElementById('progress');
-  var count = document.getElementById('count');
-  var prevBtn = document.getElementById('prev');
-  var nextBtn = document.getElementById('next');
-  var fixEl = document.querySelector('.fix');
-  var fixText = document.getElementById('fix-text');
-
-  // Set when a live take has been scored by relay-server; the card then shows it instead of the scripted numbers.
-  var live = null;
-
-  function fmt(x) { return x.toFixed(1); }
-  function plain(s) { return s.replace(/\*/g, ''); }
-  function html(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*([^*]+)\*/g, '<span class="em">$1</span>');
-  }
-
-  var rows = CRITERIA.map(function (c) {
-    var row = document.createElement('div');
-    row.className = 'crit';
-    row.innerHTML = '<span>' + c.name + (c.weight > 1 ? '<span class="w">×' + c.weight + '</span>' : '') + '</span>' +
-      '<span class="pips">' + '<b></b><b></b><b></b><b></b><b></b>' + '</span>' +
-      '<span class="val">–</span>';
-    critEl.appendChild(row);
-    return row;
-  });
-
-  var total = CRITERIA.reduce(function (a, c) { return a + c.weight * c.score; }, 0);
-
-  function paintCard() {
-    var n = scene;
-    var vals = live ? [live.execution, live.usefulness, live.clarity] : CRITERIA.map(function (c) { return c.score; });
-    var f = live ? String : fmt;
-    body.classList.toggle('total-on', !!live || n >= TOTAL_FROM);
-    body.classList.toggle('fix-on', !!live || n >= FIX_FROM);
-
-    CRITERIA.forEach(function (c, i) {
-      var on = !!live || n >= c.from;
-      rows[i].classList.toggle('on', on);
-      rows[i].querySelector('.val').innerHTML = on ? f(vals[i]) + '<small> / 5</small>' : '–';
-      Array.prototype.forEach.call(rows[i].querySelectorAll('.pips b'), function (b, k) {
-        b.style.setProperty('--fill', on ? Math.max(0, Math.min(1, vals[i] - k)) * 100 + '%' : '0%');
-      });
-    });
-    sumEl.innerHTML = CRITERIA.map(function (c, i) {
-      return f(vals[i]) + (c.weight > 1 ? ' <span>×</span> ' + c.weight : '');
-    }).join(' <span>+</span> ') + ' <span>=</span>' +
-      '<small>' + CRITERIA.map(function (c) { return c.name + (c.weight > 1 ? ' × ' + c.weight : ''); }).join(' + ') + '</small>';
-    totalEl.textContent = live ? f(live.score) : n >= TOTAL_FROM ? fmt(total) : '–';
-
-    var rec = live ? live.recommendation : FIX_TEXT;
-    fixText.textContent = rec ? '“' + rec + '”' : live.note;
-    fixEl.classList.toggle('none', !rec);
-  }
-
-  // Text size per scene so the whole scene fits the left column.
-  function fitSize(lines) {
-    var chars = lines.reduce(function (a, l) { return a + plain(l).length; }, 0);
-    var area = 59 * 64 - lines.length * 2.2 * 59;
-    return Math.max(3.5, Math.min(7.2, Math.sqrt(area / (chars * 0.6))));
-  }
-
-  var scene = -1;
-  var opened = false;
-
-  function show(n) {
-    n = Math.max(0, Math.min(SCENES.length - 1, n));
-    if (n === scene) return;
-    scene = n;
-    history.replaceState(null, '', '#' + (n + 1));
-
-    body.classList.toggle('first', n === 0);
-    body.classList.toggle('app-on', n >= 1);
-    progress.style.width = ((n + 1) / SCENES.length * 100) + '%';
-    count.textContent = (n + 1) + ' / ' + SCENES.length;
-    prevBtn.disabled = n === 0;
-    nextBtn.disabled = n === SCENES.length - 1;
-
-    // The opening frame is shown still; lines move in only when the viewer changes scene.
-    body.classList.toggle('still', !opened);
-    opened = true;
-    wordsEl.innerHTML = '';
-    if (n === 0) {
-      wordsEl.insertAdjacentHTML('beforeend', '<div class="lockup"><div class="name">Petr Kubelka</div><div class="brand">Relay</div></div>');
-    }
-    var fs = fitSize(SCENES[n]);
-    SCENES[n].forEach(function (l, i) {
-      var p = document.createElement('p');
-      p.className = 'line';
-      p.style.setProperty('--fs', fs.toFixed(2));
-      p.style.setProperty('--i', i);
-      p.innerHTML = html(l);
-      wordsEl.appendChild(p);
-    });
-
-    paintCard();
-  }
-
+  // Slide keys pressed while this page (not an iframe) has focus go to the slides.
   document.addEventListener('keydown', function (e) {
-    var k = e.key;
-    if ((k === ' ' || k === 'Enter') && e.target.closest && e.target.closest('#mini')) return;
-    if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || k === ' ' || k === 'Enter') { e.preventDefault(); show(scene + 1); }
-    else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); show(scene - 1); }
-    else if (k === 'Home') { e.preventDefault(); show(0); }
-    else if (k === 'End') { e.preventDefault(); show(SCENES.length - 1); }
-  });
-  prevBtn.addEventListener('click', function (e) { e.stopPropagation(); show(scene - 1); });
-  nextBtn.addEventListener('click', function (e) { e.stopPropagation(); show(scene + 1); });
-  document.addEventListener('click', function (e) {
-    show(e.clientX < window.innerWidth * 0.25 ? scene - 1 : scene + 1);
+    if (NAV.indexOf(e.key) < 0 || !deck.contentDocument) return;
+    e.preventDefault();
+    deck.contentDocument.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, bubbles: true, cancelable: true }));
   });
 
-  // Live miniature. Audio goes to this page's own /api/*, which live_server.py forwards to relay-server.
-  var mini = document.getElementById('mini');
-  var miniText = document.getElementById('mini-text');
-  var miniBtn = document.getElementById('mini-btn');
-  var miniLabel = document.getElementById('mini-label');
-  var miniStatus = document.getElementById('mini-status');
-  var miniClock = document.getElementById('mini-clock');
-  // Resend the whole take this often; each reply replaces the words shown.
-  var RESEND_MS = 2500;
-
-  var recorder = null, stream = null, chunks = [], sentChunks = 0;
-  var recording = false, busy = false, inflight = null, lastSend = 0;
-  var seq = 0, shownSeq = 0, shownWords = [];
-  var startedAt = 0, tick = null;
-
-  function status(text, isError) {
-    miniStatus.textContent = text;
-    miniStatus.classList.toggle('err', !!isError);
-  }
-
-  function clock() {
-    var s = Math.floor((Date.now() - startedAt) / 1000);
-    miniClock.textContent = Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
-  }
-
-  function paintTranscript(text) {
-    var words = text.split(/\s+/).filter(Boolean);
-    var same = 0;
-    while (same < words.length && same < shownWords.length && words[same] === shownWords[same]) same++;
-    miniText.innerHTML = '';
-    if (!words.length) {
-      miniText.innerHTML = '<p class="hint">No words heard yet.</p>';
-    }
-    var p = document.createElement('p');
-    words.forEach(function (w, i) {
-      var span = document.createElement('span');
-      if (i >= same) span.className = 'nw';
-      span.textContent = w + ' ';
-      p.appendChild(span);
-    });
-    miniText.appendChild(p);
-    miniText.scrollTop = miniText.scrollHeight;
-    shownWords = words;
-  }
-
-  function baseType(t) { return (t || 'audio/webm').split(';')[0]; }
-
-  function toBase64(blob) {
-    return new Promise(function (resolve, reject) {
-      var r = new FileReader();
-      r.onload = function () { resolve(String(r.result).split(',')[1] || ''); };
-      r.onerror = function () { reject(new Error('Could not read the recording')); };
-      r.readAsDataURL(blob);
-    });
-  }
-
-  function post(path, payload) {
-    return fetch('/api/' + path, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(function (res) {
-      return res.json().catch(function () { return {}; }).then(function (json) {
-        if (!res.ok) throw new Error(json.error || 'relay-server answered ' + res.status);
-        return json;
-      });
-    });
-  }
-
-  function transcribe(blob, audio64) {
-    var mine = ++seq;
-    return (audio64 ? Promise.resolve(audio64) : toBase64(blob)).then(function (b64) {
-      return post('transcribe', { audioBase64: b64, mimeType: baseType(blob.type) });
-    }).then(function (json) {
-      var text = typeof json.transcript === 'string' ? json.transcript : '';
-      if (mine > shownSeq) { shownSeq = mine; paintTranscript(text); }
-      return text;
-    });
-  }
-
-  function pump() {
-    if (!recording || inflight || chunks.length === sentChunks || Date.now() - lastSend < RESEND_MS) return;
-    sentChunks = chunks.length;
-    lastSend = Date.now();
-    var blob = new Blob(chunks.slice(0, sentChunks), { type: recorder.mimeType || chunks[0].type });
-    status('Listening · transcribing');
-    inflight = transcribe(blob).then(function () {
-      if (recording) status('Listening');
-    }, function (err) {
-      if (recording) status('Transcription failed: ' + err.message + '. Still recording.', true);
-    }).then(function () { inflight = null; });
-  }
-
-  function setIdle(label) {
-    busy = false; recording = false;
-    mini.classList.remove('on');
-    miniBtn.disabled = false;
-    miniLabel.textContent = label || 'Record';
-  }
-
-  function begin() {
-    if (!navigator.mediaDevices || !window.MediaRecorder) {
-      status('This browser cannot record audio here.', true);
-      return;
-    }
-    busy = true; miniBtn.disabled = true;
-    status('Allow the microphone to start');
-    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }).then(function (s) {
-      stream = s;
-      var type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].filter(function (t) {
-        return MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t);
-      })[0];
-      recorder = type ? new MediaRecorder(s, { mimeType: type }) : new MediaRecorder(s);
-      chunks = []; sentChunks = 0; lastSend = Date.now(); shownWords = []; shownSeq = seq;
-      recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); pump(); };
-      recorder.onstop = finish;
-      recorder.start(1000);
-      recording = true; busy = false;
-      mini.classList.add('on');
-      miniBtn.disabled = false;
-      miniLabel.textContent = 'Stop';
-      miniText.innerHTML = '<p class="hint">Listening…</p>';
-      startedAt = Date.now(); clock();
-      tick = setInterval(function () { clock(); pump(); }, 250);
-      status('Listening');
-    }, function (err) {
-      setIdle();
-      status(err && err.name === 'NotAllowedError' ? 'Microphone blocked. Allow it in the address bar.' : 'No microphone found.', true);
-    });
-  }
-
-  function end() {
-    recording = false; busy = true;
-    clearInterval(tick);
-    mini.classList.remove('on');
-    miniBtn.disabled = true;
-    miniLabel.textContent = 'Stopping';
-    status('Transcribing the whole take');
-    recorder.stop();
-  }
-
-  function finish() {
-    stream.getTracks().forEach(function (t) { t.stop(); });
-    var blob = new Blob(chunks, { type: recorder.mimeType || (chunks[0] && chunks[0].type) || 'audio/webm' });
-    if (!blob.size) { setIdle(); status('Nothing was recorded.', true); return; }
-    var audio64 = null, transcript = '';
-    Promise.resolve(inflight).then(function () { return toBase64(blob); }).then(function (b64) {
-      audio64 = b64;
-      return transcribe(blob, b64);
-    }).then(function (text) {
-      transcript = text.trim();
-      if (!transcript) { setIdle(); status('No words heard. Nothing was scored.', true); return; }
-      status('Scoring the take');
-      var attempt = (parseInt(localStorage.getItem('relay-live-attempt'), 10) || 0) + 1;
-      localStorage.setItem('relay-live-attempt', String(attempt));
-      var saved = false;
-      var classify = post('classify', { transcript: transcript }).then(function (r) {
-        if (!saved) { live = { execution: r.execution, usefulness: r.usefulness, clarity: r.clarity, score: r.score, recommendation: null, note: 'Writing the line to fix…' }; paintCard(); }
-      });
-      var session = post('sessions', { attempt: attempt, transcript: transcript, audioBase64: audio64, mimeType: baseType(blob.type) }).then(function (r) {
-        saved = true;
-        live = { execution: r.execution, usefulness: r.usefulness, clarity: r.clarity, score: r.score, recommendation: r.recommendation || null, note: 'No line returned.' };
-        paintCard();
-        return r;
-      });
-      return Promise.allSettled([classify, session]).then(function (out) {
-        setIdle();
-        if (out[1].status === 'fulfilled') status('Saved as take ' + out[1].value.attempt + ' · scored by Relay');
-        else if (out[0].status === 'fulfilled') {
-          live.note = 'No line returned: ' + out[1].reason.message + '.';
-          paintCard();
-          status('Scored, but saving failed: ' + out[1].reason.message, true);
-        } else status('Scoring failed: ' + out[1].reason.message, true);
-      });
-    }).catch(function (err) {
-      setIdle();
-      status('Transcription failed: ' + err.message, true);
-    });
-  }
-
-  mini.addEventListener('click', function (e) { e.stopPropagation(); });
-  miniBtn.addEventListener('click', function () {
-    miniBtn.blur();
-    if (busy) return;
-    if (recording) end(); else begin();
+  // Keys typed into the live app stay there; once the pointer leaves it, the presenter's keys drive the slides again.
+  web.addEventListener('mouseleave', function () {
+    if (document.activeElement === web) { web.blur(); window.focus(); }
   });
 
-  var start = parseInt((location.hash.match(/^#(\d+)$/) || [])[1], 10);
-  show(isNaN(start) ? 0 : start - 1);
+  function syncHash() {
+    try {
+      var h = deck.contentWindow.location.hash;
+      if (h && h !== location.hash) history.replaceState(null, '', h);
+    } catch (err) {}
+  }
+  deck.addEventListener('load', function () {
+    syncHash();
+    deck.contentWindow.addEventListener('keydown', function () { setTimeout(syncHash, 0); });
+    deck.contentWindow.addEventListener('click', function () { setTimeout(syncHash, 0); });
+    window.focus();
+  });
 })();
 </script>
 </body>
