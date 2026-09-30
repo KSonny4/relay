@@ -6,15 +6,15 @@
 <title>Petr Kubelka · Relay</title>
 <style>
   :root {
-    --bg: #0a0a0a;
-    --fg: #f7f7f7;
-    --muted: #b4b4b4;
-    --dim: #8a8a8a;
-    --accent: #ffc53d;
-    --live: #ff4d4d;
-    --ok: #4ade80;
-    --panel: #151515;
-    --line: #2e2e2e;
+    --bg: #ffffff;
+    --fg: #0a0a0a;
+    --muted: #555555;
+    --dim: #737373;
+    --accent: #0a0a0a;
+    --live: #0a0a0a;
+    --panel: #ffffff;
+    --soft: #f3f3f3;
+    --line: #e2e2e2;
     /* One size unit that fits 16:9 by height and narrower screens by width. */
     --u: min(1vh, 0.58vw);
   }
@@ -71,12 +71,13 @@
   #outcomes li.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
   #app {
     background: var(--panel); border: 2px solid var(--line); border-radius: calc(var(--u) * 2.4);
+    box-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 6) rgba(0, 0, 0, .08);
     display: grid; grid-template-rows: auto auto auto 1fr; overflow: hidden; min-height: 0;
   }
   .level { padding: 0 calc(var(--u) * 3) calc(var(--u) * 2.2); font-size: calc(var(--u) * 3); font-weight: 800; min-height: 1.2em; }
   .fix {
     display: none; margin: 0 calc(var(--u) * 3) calc(var(--u) * 2.4);
-    border-left: calc(var(--u) * 0.8) solid var(--accent); background: rgba(255, 197, 61, .08);
+    border-left: calc(var(--u) * 0.8) solid var(--accent); background: var(--soft);
     padding: calc(var(--u) * 1.2) calc(var(--u) * 1.8);
     font-size: calc(var(--u) * 2.8); font-weight: 700; line-height: 1.25;
   }
@@ -123,16 +124,6 @@
   }
   body.paused #pause { display: block; }
 
-  @media (orientation: portrait) {
-    :root { --u: 1.05vw; }
-    #stage { grid-template-columns: 1fr; grid-template-rows: 1fr auto; align-items: end; padding: 8vh 6vw 10vh; gap: 3vh; }
-    .line { font-size: calc(var(--u) * 7); }
-    .line.past { font-size: calc(var(--u) * 4.2); }
-    .line.long { font-size: calc(var(--u) * 5.6); }
-    #side { max-height: 46vh; }
-    .transcript { font-size: calc(var(--u) * 3.4); }
-    #corner { font-size: calc(var(--u) * 3.4); }
-  }
   @media (prefers-reduced-motion: reduce) {
     .line { animation: none; }
     .rec i { animation: none; }
