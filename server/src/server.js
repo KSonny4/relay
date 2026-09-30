@@ -544,11 +544,18 @@ async function callJev(fetchImpl, env, transcript) {
   return mapMarks(jev.json.answers);
 }
 
+export function perfectMarks(marks) {
+  return marks.execution === 5 && marks.usefulness === 5 && marks.clarity === 5;
+}
+
 async function scoreTranscript(fetchImpl, env, transcript) {
+  const mapped = await callJev(fetchImpl, env, transcript);
+  if (perfectMarks(mapped)) {
+    return { ...mapped, recommendation: "" };
+  }
   if (!env.OPENAI_API_KEY) {
     throw httpError(503, "OpenAI is not configured. Set OPENAI_API_KEY.");
   }
-  const mapped = await callJev(fetchImpl, env, transcript);
 
   const openai = await postJson(
     fetchImpl,

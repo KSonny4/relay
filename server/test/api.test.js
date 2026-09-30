@@ -5,6 +5,7 @@ import {
   CRITIC_INSTRUCTIONS,
   SCORE_QUESTIONS,
   criterionInteger,
+  perfectMarks,
   createMemoryStore,
   createPostgresStore,
   createServer,
@@ -548,6 +549,52 @@ test("small talk is the bottom criterion and the sentence is a critic", () => {
   );
   assert.match(CRITIC_INSTRUCTIONS, /Do not praise a greeting/);
   assert.match(CRITIC_INSTRUCTIONS, /Do not give generic marketing advice/);
+});
+
+test("a perfect 5, 5, 5 stores an empty line and does not ask for a change", async () => {
+  const fetchMock = mockFetch({
+    jev: jevResponse({ execution: 4, usefulness: 4, clarity: 4 }),
+    openai: openaiResponse("Clarify what Relay is and who it is for."),
+  });
+  await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base, store }) => {
+    const created = await request(base, "POST", "/api/sessions", {
+      attempt: 1,
+      transcript: "Relay records a pitch, scores what was built, who it helps, and what to try next.",
+    });
+    assert.equal(created.status, 200);
+    assert.equal(created.json.execution, 5);
+    assert.equal(created.json.usefulness, 5);
+    assert.equal(created.json.clarity, 5);
+    assert.equal(created.json.score, 20);
+    assert.equal(created.json.recommendation, "");
+    assert.equal(fetchMock.calls.length, 1);
+    assert.equal(fetchMock.calls[0].url.endsWith("/v1/systemone"), true);
+    assert.equal(store.rows[0].recommendation, "");
+    const one = await request(base, "GET", `/api/sessions/${created.json.id}`);
+    assert.equal(one.json.recommendation, "");
+  });
+  assert.equal(perfectMarks({ execution: 5, usefulness: 5, clarity: 5 }), true);
+  assert.equal(perfectMarks({ execution: 5, usefulness: 5, clarity: 4 }), false);
+});
+
+test("a mark below 5 still returns the critic sentence and stays under 20", async () => {
+  const fetchMock = mockFetch({
+    jev: jevResponse({ execution: 4, usefulness: 4, clarity: 3.2 }),
+  });
+  await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base }) => {
+    const created = await request(base, "POST", "/api/sessions", {
+      attempt: 1,
+      transcript: "Relay records a pitch and still needs a clearer audience.",
+    });
+    assert.equal(created.json.execution, 5);
+    assert.equal(created.json.usefulness, 5);
+    assert.equal(created.json.clarity, 4);
+    assert.equal(created.json.score, 19);
+    assert.equal(created.json.recommendation, "Name the first command a developer should run.");
+    assert.equal(created.json.score < 20, true);
+    assert.equal(fetchMock.calls.length, 2);
+    assert.equal(fetchMock.calls[1].url, "https://api.openai.com/v1/chat/completions");
+  });
 });
 
 test("nearest legend level and one-sentence recommendation", () => {

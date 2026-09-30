@@ -2,21 +2,22 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   emptyScript,
-  formatSentenceSpan,
+  formatScriptClock,
   readTranscriptScript,
 } from "./transcript-script.ts";
 
 describe("timed transcript", () => {
-  it("renders each sentence as minutes and seconds", () => {
+  it("shows the start time only, as hours:minutes:seconds", () => {
     const script = readTranscriptScript({
       transcript: "We help developers ship. Reviews get faster.",
       sentences: [
-        { text: "We help developers ship.", start: 4, end: 11 },
+        { text: "We help developers ship.", start: 0, end: 5 },
         { text: "Reviews get faster.", start: 65.2, end: 72 },
       ],
     });
-    assert.equal(formatSentenceSpan(script.sentences[0]), "0:04–0:11");
-    assert.equal(formatSentenceSpan(script.sentences[1]), "1:05–1:12");
+    assert.equal(formatScriptClock(script.sentences[0].start), "00:00:00");
+    assert.equal(formatScriptClock(script.sentences[1].start), "00:01:05");
+    assert.equal(formatScriptClock(4), "00:00:04");
   });
 
   it("does not invent times when the sentences array is missing", () => {
