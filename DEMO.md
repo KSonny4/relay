@@ -1,6 +1,6 @@
 # Relay — judge run
 
-Two attempts. Attempt 1 is the motion page. Attempt 2 is the live app. When time stops, the screen is the classification: overall score, level, confidence, and one recommendation.
+Two attempts. Attempt 1 is the 60-second motion page. Attempt 2 is up to about two minutes on the live app. The product does not cap a recording at 60 or 120 seconds. The person presses stop. About 10 seconds of silence with no words also ends the take. The screen to hold is the classification: overall score, level, confidence, and one recommendation.
 
 The score answers one question: how well does this pitch explain an idea that helps developers?
 
@@ -45,15 +45,15 @@ Motion page, Attempt 1 only: open `reel/index.html` in a browser, or the same pa
 2. Let it play for the full minute.
 3. Do not touch the live app during this minute. Leave [http://127.0.0.1:43123](http://127.0.0.1:43123) alone.
 
-## Attempt 2 — 120 seconds — live app
+## Attempt 2 — about 2 minutes — live app
 
-Use the product at [http://127.0.0.1:43123](http://127.0.0.1:43123). The server on port 43124 is already running.
+Use the product at [http://127.0.0.1:43123](http://127.0.0.1:43123). The server on port 43124 is already running. Keep this attempt to about two minutes.
 
-Start Attempt 1 in the product only if time remains. That recording caps at 60 seconds, then the page classifies.
+The recording has no 60-second or 120-second cap. Speak, then press stop. About 10 seconds of silence with no words also ends the take. The page classifies when the take ends.
 
-If a full spoken attempt will not fit, do not open the mic. Paste this pitch and press Classify so the score still appears:
+If a spoken attempt will not fit in the two minutes, do not open the mic. Paste this pitch and press Classify so the score still appears:
 
-> Relay listens while a developer pitches an idea, writes the transcript as they speak, and stops at 60 seconds on the first attempt or 120 on the second. It then scores how well the pitch explains an idea that helps developers, and names the one thing to improve next. The recording and the session are saved.
+> Relay listens while a developer pitches an idea and writes the transcript as they speak. They press stop when they are done. About 10 seconds of silence with no words also ends the take. It then scores how well the pitch explains an idea that helps developers, and names the one thing to improve next. The recording and the session are saved.
 
 ## End screen
 
