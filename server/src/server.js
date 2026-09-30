@@ -82,6 +82,10 @@ export function nearestLevel(score, legend) {
   return typeof text === "string" ? text : null;
 }
 
+export function visibleScore(jevScore) {
+  return Math.round(jevScore * 2.5 * 10) / 10;
+}
+
 export function mapScoreAnswer(answer) {
   if (
     !answer ||
@@ -95,7 +99,7 @@ export function mapScoreAnswer(answer) {
   }
   const level = nearestLevel(answer.score, answer.legend);
   if (!level) throw httpError(502, "Jev legend was missing");
-  return { score: answer.score, level, confidence: answer.confidence };
+  return { score: visibleScore(answer.score), level, confidence: answer.confidence };
 }
 
 export function firstSentence(text) {

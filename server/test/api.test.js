@@ -9,6 +9,8 @@ import {
   databaseUrlFrom,
   firstSentence,
   jevTarget,
+  mapScoreAnswer,
+  visibleScore,
   listenPort,
   nearestLevel,
   postgresOptions,
@@ -143,7 +145,7 @@ test("TYPESAFE_API_KEY posts one jev-latest score question, then OpenAI, then st
     assert.equal(created.status, 200);
     assert.equal(created.headers.get("access-control-allow-origin"), "http://127.0.0.1:43123");
     assert.equal(created.json.attempt, 1);
-    assert.equal(created.json.score, 3.2);
+    assert.equal(created.json.score, 8);
     assert.equal(created.json.level, PITCH_CRITERIA[3]);
     assert.equal(created.json.confidence, 0.81);
     assert.equal(created.json.recommendation, "Name the first command a developer should run.");
@@ -291,6 +293,39 @@ test("Deepgram without a key is 503 and does not call the network", async () => 
   });
 });
 
+test("a Jev score of 3.1 leaves the API as 7.8", async () => {
+  const fetchMock = mockFetch({ jev: jevResponse(3.1, 0.64) });
+  await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base, store }) => {
+    const classified = await request(base, "POST", "/api/classify", {
+      transcript: "A pitch that is mostly clear.",
+    });
+    assert.equal(classified.status, 200);
+    assert.equal(classified.json.score, 7.8);
+    assert.equal(classified.json.level, PITCH_CRITERIA[3]);
+    assert.equal(classified.json.confidence, 0.64);
+
+    const created = await request(base, "POST", "/api/sessions", {
+      attempt: 1,
+      transcript: "A pitch that is mostly clear.",
+    });
+    assert.equal(created.json.score, 7.8);
+    assert.equal(created.json.level, PITCH_CRITERIA[3]);
+    assert.equal(store.rows[0].score, 7.8);
+    const jevBodies = fetchMock.calls
+      .filter((call) => call.url.endsWith("/v1/systemone"))
+      .map((call) => JSON.parse(call.init.body));
+    assert.equal(jevBodies.length, 2);
+    for (const body of jevBodies) assertScoreQuestion(body, "jev-latest", "A pitch that is mostly clear.");
+  });
+  assert.equal(visibleScore(3.1), 7.8);
+  assert.equal(mapScoreAnswer({
+    type: "score",
+    score: 3.1,
+    confidence: 0.64,
+    legend: LEGEND,
+  }).score, 7.8);
+});
+
 test("nearest legend level and one-sentence recommendation", () => {
   assert.equal(nearestLevel(3.2, LEGEND), PITCH_CRITERIA[3]);
   assert.equal(nearestLevel(2.5, LEGEND), PITCH_CRITERIA[3]);
@@ -360,7 +395,7 @@ test("POST /api/classify calls Jev once and does not call OpenAI or store a sess
       const res = await request(base, "POST", "/api/classify", { transcript });
       assert.equal(res.status, 200);
       assert.deepEqual(res.json, {
-        score: 3.2,
+        score: 8,
         level: PITCH_CRITERIA[3],
         confidence: 0.81,
       });
