@@ -318,7 +318,7 @@ export function RelayPitch() {
   }
 
   const showResult = phase === "done" && result !== null;
-  const showLiveScore = !showResult && (phase === "recording" || phase === "classifying" || liveScore !== null);
+  const showLiveScore = !showResult && (phase === "recording" || liveScore !== null);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
