@@ -31,10 +31,10 @@ export type ClassifyInput = {
 };
 
 export async function fetchDeepgramAccessToken(): Promise<string> {
-  const response = await fetch(`${RELAY_API_BASE}/api/deepgram/token`, {
+  const response = await relayFetch(`${RELAY_API_BASE}/api/deepgram/token`, {
     method: "POST",
     cache: "no-store",
-  });
+  }, "Deepgram access token is unavailable. Paste a transcript to classify.");
   if (!response.ok) {
     throw new Error(
       `Deepgram access token is unavailable (${response.status}). Paste a transcript to classify.`,
@@ -48,12 +48,12 @@ export async function fetchDeepgramAccessToken(): Promise<string> {
 }
 
 export async function classifyLive(transcript: string): Promise<LiveScore> {
-  const response = await fetch(`${RELAY_API_BASE}/api/classify`, {
+  const response = await relayFetch(`${RELAY_API_BASE}/api/classify`, {
     method: "POST",
     cache: "no-store",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(liveClassifyPayload(transcript)),
-  });
+  }, "Live score update failed. The Relay API is not reachable.");
   if (!response.ok) {
     throw new Error(`Live score update failed (${response.status}).`);
   }
@@ -75,12 +75,12 @@ export async function classifySession(input: ClassifyInput): Promise<Classificat
     payload.mimeType = input.mimeType;
   }
 
-  const response = await fetch(`${RELAY_API_BASE}/api/sessions`, {
+  const response = await relayFetch(`${RELAY_API_BASE}/api/sessions`, {
     method: "POST",
     cache: "no-store",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  });
+  }, "Classification failed. The Relay API is not reachable.");
   if (!response.ok) {
     throw new Error(`Classification failed (${response.status}).`);
   }
@@ -88,9 +88,9 @@ export async function classifySession(input: ClassifyInput): Promise<Classificat
 }
 
 export async function listSessions(): Promise<SessionRecord[]> {
-  const response = await fetch(`${RELAY_API_BASE}/api/sessions`, {
+  const response = await relayFetch(`${RELAY_API_BASE}/api/sessions`, {
     cache: "no-store",
-  });
+  }, "Could not load past sessions. The Relay API is not reachable.");
   if (!response.ok) {
     throw new Error(`Could not load past sessions (${response.status}).`);
   }
@@ -163,4 +163,12 @@ function parseSession(body: unknown): SessionRecord {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+async function relayFetch(url: string, init: RequestInit, unreachable: string): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new Error(unreachable);
+  }
 }
