@@ -1,6 +1,6 @@
 # Relay pitch
 
-Desktop page for Relay pitch classification. One Record button. The score, out of 10, updates while the microphone is open. Past recordings sit in a side list.
+Desktop pages for a Relay pitch. One Record action starts a new take. While the microphone is open, the screen is the words and the score out of 10. History lists saved recordings. Opening one loads that session and shows the score and the next step.
 
 ## Run
 

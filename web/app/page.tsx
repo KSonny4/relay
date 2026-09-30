@@ -1,5 +1,5 @@
-import { RelayPitch } from "@/components/relay-pitch";
+import { HistoryScreen } from "@/components/history-screen";
 
-export default function Home() {
-  return <RelayPitch />;
+export default function Page() {
+  return <HistoryScreen />;
 }
