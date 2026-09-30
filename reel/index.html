@@ -9,9 +9,12 @@
     --bg: #0a0a0a;
     --fg: #f7f7f7;
     --muted: #b4b4b4;
+    --dim: #8a8a8a;
     --accent: #ffc53d;
     --live: #ff4d4d;
     --ok: #4ade80;
+    --panel: #151515;
+    --line: #2e2e2e;
     /* One size unit that fits 16:9 by height and narrower screens by width. */
     --u: min(1vh, 0.58vw);
   }
@@ -24,222 +27,277 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  #progress {
-    position: fixed; top: 0; left: 0; height: 6px; width: 0;
-    background: var(--accent); z-index: 10;
-  }
+  #progress { position: fixed; top: 0; left: 0; height: 6px; width: 0; background: var(--accent); z-index: 10; }
 
-  .scene {
+  #stage {
     position: fixed; inset: 0;
-    display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
-    padding: calc(var(--u) * 8) 7vw;
-    gap: calc(var(--u) * 2.6);
-    opacity: 0; visibility: hidden;
-    transition: opacity .4s ease, visibility 0s linear .4s;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 40vw);
+    gap: 4vw; align-items: center;
+    padding: calc(var(--u) * 8) 5vw calc(var(--u) * 9) 6vw;
   }
-  .scene.active { opacity: 1; visibility: visible; transition: opacity .4s ease; }
 
-  [data-at] {
-    display: none;
-    opacity: 0; transform: translateY(calc(var(--u) * 2.5));
-    transition: opacity .45s ease, transform .45s ease, font-size .45s ease, color .45s ease;
-  }
-  [data-at].shown { display: block; }
-  [data-at].on { opacity: 1; transform: none; }
-
+  /* Spoken lines */
+  #words { display: flex; flex-direction: column; justify-content: center; gap: calc(var(--u) * 2.4); min-height: 0; }
+  .lockup { display: grid; gap: calc(var(--u) * 1); margin-bottom: calc(var(--u) * 1.5); transition: opacity .4s ease; }
+  .lockup .name { font-size: calc(var(--u) * 4.4); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+  .lockup .brand { font-size: calc(var(--u) * 15); font-weight: 900; letter-spacing: -0.045em; line-height: .9; color: var(--accent); }
+  .lockup.gone { display: none; }
   .line {
-    font-size: calc(var(--u) * 9.2);
-    font-weight: 800; letter-spacing: -0.025em; line-height: 1.06;
-    color: var(--fg); max-width: 100%;
+    font-size: calc(var(--u) * 7.6); font-weight: 800; letter-spacing: -0.025em; line-height: 1.06;
     text-wrap: balance;
+    animation: rise .45s ease both;
   }
-  .line.past {
-    font-size: calc(var(--u) * 4.2);
-    font-weight: 700; letter-spacing: -0.01em; line-height: 1.12;
-    color: var(--muted);
-  }
+  .line.past { font-size: calc(var(--u) * 3.8); font-weight: 700; letter-spacing: -0.01em; color: var(--dim); animation: none; }
+  .line.long { font-size: calc(var(--u) * 6); }
+  .line.long.past { font-size: calc(var(--u) * 3.8); }
+  .line .accent { color: var(--accent); }
   .line.past .accent { color: inherit; }
-  .accent { color: var(--accent); }
+  @keyframes rise { from { opacity: 0; transform: translateY(calc(var(--u) * 2.5)); } }
 
-  .lockup { display: grid; gap: calc(var(--u) * 1); margin-bottom: calc(var(--u) * 2); }
-  .lockup .name { font-size: calc(var(--u) * 4.6); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--fg); }
-  .lockup .brand { font-size: calc(var(--u) * 17); font-weight: 900; letter-spacing: -0.045em; line-height: .9; color: var(--accent); }
-
-  .beat {
-    font-size: calc(var(--u) * 14);
-    font-weight: 900; letter-spacing: -0.04em; line-height: .98;
-    display: none; align-items: center; gap: calc(var(--u) * 3);
+  /* Product */
+  #side {
+    display: flex; flex-direction: column; gap: calc(var(--u) * 2.2); min-height: 0;
+    max-height: calc(100vh - var(--u) * 17);
+    opacity: 0; transform: translateY(calc(var(--u) * 3));
+    transition: opacity .6s ease, transform .6s ease;
   }
-  .beat.shown { display: flex; }
-  .beat.stop { color: var(--accent); }
-  .beat .rec {
-    width: calc(var(--u) * 5); height: calc(var(--u) * 5);
-    border-radius: 50%; background: var(--live); flex: none;
-    animation: pulse 1s ease-in-out infinite;
-    transition: border-radius .3s ease;
+  body.app-on #side { opacity: 1; transform: none; }
+  #outcomes { list-style: none; display: flex; gap: calc(var(--u) * 1.4); flex-wrap: wrap; }
+  #outcomes li {
+    font-size: calc(var(--u) * 3); font-weight: 800; color: var(--dim);
+    border: 3px solid var(--line); border-radius: 999px; padding: calc(var(--u) * .7) calc(var(--u) * 2.2);
+    transition: color .4s ease, border-color .4s ease, background .4s ease;
   }
-  .scene:has(.beat.stop.on) .rec { animation: none; border-radius: 12%; }
-  body.paused .rec { animation-play-state: paused; }
+  #outcomes li.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  #app {
+    background: var(--panel); border: 2px solid var(--line); border-radius: calc(var(--u) * 2.4);
+    display: grid; grid-template-rows: auto auto auto 1fr; overflow: hidden; min-height: 0;
+  }
+  .level { padding: 0 calc(var(--u) * 3) calc(var(--u) * 2.2); font-size: calc(var(--u) * 3); font-weight: 800; min-height: 1.2em; }
+  .fix {
+    display: none; margin: 0 calc(var(--u) * 3) calc(var(--u) * 2.4);
+    border-left: calc(var(--u) * 0.8) solid var(--accent); background: rgba(255, 197, 61, .08);
+    padding: calc(var(--u) * 1.2) calc(var(--u) * 1.8);
+    font-size: calc(var(--u) * 2.8); font-weight: 700; line-height: 1.25;
+  }
+  .fix-label { display: block; color: var(--accent); font-size: calc(var(--u) * 2.2); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-bottom: calc(var(--u) * .6); }
+  body.fixing .fix { display: block; animation: rise .45s ease both; }
+  .bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: calc(var(--u) * 1.8) calc(var(--u) * 3); border-bottom: 2px solid var(--line);
+    font-size: calc(var(--u) * 2.8); font-weight: 800;
+  }
+  .bar .brand { color: var(--accent); }
+  .rec { display: inline-flex; align-items: center; gap: calc(var(--u) * 1.2); color: var(--muted); }
+  .rec i { width: calc(var(--u) * 2); height: calc(var(--u) * 2); border-radius: 50%; background: var(--live); animation: pulse 1s ease-in-out infinite; }
+  body.paused .rec i { animation-play-state: paused; }
   @keyframes pulse { 50% { opacity: .25; } }
-  .underline { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: .08em; text-underline-offset: .12em; }
+
+  .score { display: flex; align-items: baseline; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 2.6) calc(var(--u) * 3) calc(var(--u) * 1); font-variant-numeric: tabular-nums; }
+  .score .num { font-size: calc(var(--u) * 14); font-weight: 900; letter-spacing: -0.05em; line-height: .85; color: var(--accent); }
+  .score .of { font-size: calc(var(--u) * 5); font-weight: 800; color: var(--muted); }
+  .meter { margin: 0 calc(var(--u) * 3) calc(var(--u) * 1.8); height: calc(var(--u) * 1.4); background: var(--line); border-radius: 999px; overflow: hidden; }
+  .meter b { display: block; height: 100%; width: 0; background: var(--accent); transition: width .5s ease; }
+
+  .transcript {
+    padding: 0 calc(var(--u) * 3) calc(var(--u) * 3);
+    display: flex; flex-direction: column; justify-content: flex-end; gap: calc(var(--u) * 1.1);
+    overflow: hidden; min-height: 0;
+    font-size: calc(var(--u) * 2.6); font-weight: 600; line-height: 1.3; color: var(--muted);
+  }
+  .transcript p:last-child { color: var(--fg); }
+  .caret { display: inline-block; width: .45em; height: 1em; background: var(--accent); vertical-align: -0.12em; margin-left: .12em; }
 
   #corner {
-    position: fixed; left: 7vw; bottom: calc(var(--u) * 3.2); z-index: 5;
-    font-size: calc(var(--u) * 2.8); font-weight: 800; letter-spacing: .04em;
-    color: var(--muted); opacity: 0; transition: opacity .4s ease;
+    position: fixed; left: 6vw; bottom: calc(var(--u) * 3.2); z-index: 5;
+    font-size: calc(var(--u) * 2.8); font-weight: 800; letter-spacing: .04em; color: var(--muted);
+    opacity: 0; transition: opacity .4s ease;
   }
   #corner b { color: var(--accent); font-weight: 900; }
   body.corner #corner { opacity: 1; }
 
-  #score {
-    position: fixed; top: calc(var(--u) * 4); right: 4vw; z-index: 6;
-    display: flex; align-items: baseline; gap: calc(var(--u) * 1.2);
-    font-weight: 900; letter-spacing: -0.04em; font-variant-numeric: tabular-nums;
-    opacity: 0; transition: opacity .4s ease;
-  }
-  body.scoring #score { opacity: 1; }
-  #score .num { font-size: calc(var(--u) * 11); line-height: .9; color: var(--accent); }
-  #score .of { font-size: calc(var(--u) * 4.6); color: var(--muted); }
-  #score .dot {
-    align-self: center; width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4);
-    border-radius: 50%; background: var(--live); animation: pulse 1s ease-in-out infinite;
-  }
-  body.locked #score .num { color: var(--ok); }
-  body.locked #score .dot { background: var(--ok); border-radius: 12%; animation: none; }
-  body.paused #score .dot { animation-play-state: paused; }
-
   #pause {
-    position: fixed; top: calc(var(--u) * 3); left: 7vw; display: none; z-index: 20;
-    border: 3px solid var(--accent); border-radius: calc(var(--u) * 1.6);
-    padding: calc(var(--u) * 1) calc(var(--u) * 2.4);
-    background: var(--bg); color: var(--accent); font-weight: 800;
-    font-size: calc(var(--u) * 3.2);
+    position: fixed; top: calc(var(--u) * 2.4); left: 50%; transform: translateX(-50%); display: none; z-index: 20;
+    border: 3px solid var(--accent); border-radius: calc(var(--u) * 1.6); padding: calc(var(--u) * .8) calc(var(--u) * 2.4);
+    background: var(--bg); color: var(--accent); font-weight: 800; font-size: calc(var(--u) * 3);
   }
   body.paused #pause { display: block; }
 
-  #hint {
-    position: fixed; right: 3vw; bottom: calc(var(--u) * 3.2); color: #8a8a8a;
-    font-size: calc(var(--u) * 2.2); font-weight: 600; transition: opacity .6s ease;
-  }
-
   @media (orientation: portrait) {
     :root { --u: 1.05vw; }
-    .scene { padding: 12vh 6vw; }
-    .line { font-size: calc(var(--u) * 8); }
-    .line.past { font-size: calc(var(--u) * 4.6); }
-    .beat { font-size: calc(var(--u) * 12); }
-    #corner, #hint { font-size: calc(var(--u) * 3.4); }
+    #stage { grid-template-columns: 1fr; grid-template-rows: 1fr auto; align-items: end; padding: 8vh 6vw 10vh; gap: 3vh; }
+    .line { font-size: calc(var(--u) * 7); }
+    .line.past { font-size: calc(var(--u) * 4.2); }
+    .line.long { font-size: calc(var(--u) * 5.6); }
+    #side { max-height: 46vh; }
+    .transcript { font-size: calc(var(--u) * 3.4); }
+    #corner { font-size: calc(var(--u) * 3.4); }
   }
   @media (prefers-reduced-motion: reduce) {
-    [data-at] { transform: none; transition: opacity .2s linear; }
-    .beat .rec { animation: none; }
+    .line { animation: none; }
+    .rec i { animation: none; }
   }
 </style>
 </head>
 <body>
 <div id="progress" role="progressbar" aria-label="Film progress" aria-valuemin="0" aria-valuemax="60" aria-valuenow="0"></div>
 
-<!-- 0:00 -->
-<section class="scene" data-start="0" data-end="12">
-  <div class="lockup" data-at="0">
-    <div class="name">Petr Kubelka</div>
-    <div class="brand">Relay</div>
+<main id="stage">
+  <div id="words" aria-live="polite">
+    <div class="lockup" id="lockup"><div class="name">Petr Kubelka</div><div class="brand">Relay</div></div>
   </div>
-  <p class="line" data-at="0.3">Developers ship the product, then lose the room.</p>
-  <p class="line" data-at="5.4">They find out the pitch failed after they sit down.</p>
-</section>
-
-<!-- 0:12 -->
-<section class="scene" data-start="12" data-end="32">
-  <p class="line" data-at="0.2"><span class="accent">Relay</span> is the rehearsal.</p>
-  <p class="line" data-at="2.3">You talk for as long as you need.</p>
-  <p class="line" data-at="6.5">The transcript runs in front of you.</p>
-  <p class="line" data-at="10.3"><span class="accent">A score moves while you are still speaking:</span> how well this pitch explains an idea that helps developers.</p>
-</section>
-
-<!-- 0:32 -->
-<section class="scene" data-start="32" data-end="48">
-  <p class="line" data-at="0.2">You press <span class="accent">stop</span> when you are done.</p>
-  <p class="line" data-at="3.2">A long pause with no words locks it too.</p>
-  <p class="line" data-at="7.0">Then one sentence: <span class="accent">the next line to fix.</span></p>
-  <p class="line" data-at="10.4">The recording and the session stay, so the next take can be better.</p>
-</section>
-
-<!-- 0:48 -->
-<section class="scene" data-start="48" data-end="60" data-hold>
-  <p class="line" data-at="0.2">I am pitching <span class="accent">Relay</span> on <span class="accent">Relay</span>.</p>
-  <p class="line" data-at="2.4">A developer should leave knowing what it is, why it helps, and what to do next.</p>
-  <p class="beat" data-at="8.2" data-group="beats"><span class="rec" aria-hidden="true"></span>Talk.</p>
-  <p class="beat" data-at="9.3" data-group="beats"><span class="underline">Watch the score move.</span></p>
-  <p class="beat stop" data-at="10.8" data-group="beats">Stop.</p>
-</section>
+  <div id="side">
+    <ul id="outcomes" aria-label="Judging">
+      <li data-outcome="execution">Execution</li>
+      <li data-outcome="usefulness">Usefulness</li>
+      <li data-outcome="clarity">Clarity</li>
+    </ul>
+    <section id="app" aria-label="Relay">
+      <div class="bar"><span class="brand">Relay</span><span class="rec"><i></i>Live</span></div>
+      <div>
+        <div class="score"><span class="num" id="score">–</span><span class="of">/ 10</span></div>
+        <div class="meter"><b id="meter"></b></div>
+        <div class="level" id="level"></div>
+      </div>
+      <div class="fix" id="fix"><span class="fix-label">Line to fix</span><span id="fix-text"></span></div>
+      <div class="transcript" id="transcript"></div>
+    </section>
+  </div>
+</main>
 
 <div id="corner">Petr Kubelka · <b>Relay</b></div>
-<div id="score" aria-label="Score out of 10"><span class="dot" aria-hidden="true"></span><span class="num" id="score-num">1.0</span><span class="of">/ 10</span></div>
-<div id="pause">Paused · Space to resume</div>
-<div id="hint">Space: pause / resume</div>
+<div id="pause">Paused</div>
 
 <script>
 (function () {
   var DURATION = 60;
-  var scenes = Array.prototype.slice.call(document.querySelectorAll('.scene')).map(function (el) {
-    return {
-      el: el,
-      start: parseFloat(el.dataset.start),
-      end: parseFloat(el.dataset.end),
-      hold: el.hasAttribute('data-hold'),
-      items: Array.prototype.slice.call(el.querySelectorAll('[data-at]')).map(function (it, i) {
-        return {
-          el: it,
-          at: parseFloat(it.dataset.at),
-          line: it.classList.contains('line'),
-          group: it.dataset.group || String(i)
-        };
-      })
-    };
+
+  // The spoken script, verbatim from the "60 seconds" section of pitch.md.
+  // `at` is the section timestamp in seconds; sentences inside a section are
+  // spaced by word count. *Asterisks* mark words shown in the accent colour.
+  // A leading [outcome] tag lights that judging outcome when the sentence is spoken.
+  var PITCH = [
+    { at: 0, lines: [
+      'Hackathon teams find out their pitch failed only after they sit down.',
+      'By then the judges have moved on, and nobody tells you which sentence lost them.'
+    ] },
+    { at: 10, lines: [
+      '[usefulness]*Relay* fixes that before you stand up.',
+      'You say your pitch out loud, and Relay gives you *one number out of ten* for a single question: how well does this pitch explain an idea that helps developers?',
+      '[clarity]Then it gives you *one line to fix.*',
+      'Not a list.',
+      'One line.',
+      'You fix that line, say it again, and the number climbs.'
+    ] },
+    { at: 32, lines: [
+      '[execution]That is *working right now.*',
+      'The live app is beside me, and it is scoring these exact words while I say them.',
+      'I am pitching *Relay* on *Relay*.'
+    ] },
+    { at: 42, lines: [
+      'Today I am building it.',
+      'Next, every team at this hackathon rehearses with it before they present.'
+    ] },
+    { at: 50, lines: [
+      'So here is what to try next: say your pitch to Relay, fix the one line it gives you, and *walk in already knowing your number.*'
+    ] }
+  ];
+
+  // Live result for these exact words from the Relay API (pitch.md, "Live scores").
+  var FINAL = 9.6;
+  var LEVEL = 'A developer would know what to try next';
+  // The score moves while the pitch is spoken and reaches the live result.
+  var SCORE_FROM = 10, SCORE_TO = 41;
+  var SCORES = [4.2, 5.1, 4.7, 6.0, 6.9, 6.6, 7.8, 8.5, 9.1, 9.6];
+  var LAST_LINE_END = 57;
+
+  var lines = [];
+  PITCH.forEach(function (sec, s) {
+    var end = s + 1 < PITCH.length ? PITCH[s + 1].at : LAST_LINE_END;
+    var parsed = sec.lines.map(function (raw) {
+      var mm = /^\[(\w+)\]/.exec(raw);
+      return { outcome: mm ? mm[1] : null, text: mm ? raw.slice(mm[0].length) : raw };
+    });
+    var words = parsed.map(function (l) { return l.text.split(/\s+/).length; });
+    var total = words.reduce(function (a, b) { return a + b; }, 0);
+    var t = sec.at + 0.2, span = end - sec.at - 0.2;
+    parsed.forEach(function (l, i) {
+      lines.push({
+        at: t, section: s, outcome: l.outcome, words: words[i],
+        text: l.text.replace(/\*/g, ''),
+        html: l.text.replace(/\*([^*]+)\*/g, '<span class="accent">$1</span>')
+      });
+      t += span * words[i] / total;
+    });
   });
+  var OUTCOME_AT = {};
+  lines.forEach(function (l) { if (l.outcome) OUTCOME_AT[l.outcome] = l.at; });
+  var FIX_AT = OUTCOME_AT.clarity;
+  // The opening is the line to fix first (pitch.md, "How to train").
+  var FIX_TEXT = lines[0].text;
 
+  var body = document.body;
+  var wordsEl = document.getElementById('words');
+  var lockup = document.getElementById('lockup');
   var progress = document.getElementById('progress');
-  var hint = document.getElementById('hint');
-  var scoreNum = document.getElementById('score-num');
+  var scoreEl = document.getElementById('score');
+  var meter = document.getElementById('meter');
+  var transcript = document.getElementById('transcript');
+  var levelEl = document.getElementById('level');
+  var outcomeEls = Array.prototype.slice.call(document.querySelectorAll('#outcomes li'));
+  document.getElementById('fix-text').textContent = '“' + FIX_TEXT + '”';
   var paused = false;
+  var shownKey = '';
 
-  // The score appears with "A score moves…", moves while the pitch is spoken,
-  // and locks with "A long pause with no words locks it too."
-  var SCORE_FROM = 22.3, SCORE_LOCK = 35.2;
-  var SCORES = [1.0, 2.3, 3.3, 2.8, 4.3, 5.5, 5.0, 6.5, 7.3, 7.8];
+  function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
-  // Items are display:none until shown so layout reserves no space for unrevealed
-  // sentences; "on" is applied a frame later so the fade-in transition runs.
-  function render(t, instant) {
+  function renderWords(t) {
+    var cur = -1;
+    for (var i = 0; i < lines.length; i++) if (t >= lines[i].at) cur = i;
+    var section = cur < 0 ? 0 : lines[cur].section;
+    var key = section + ':' + cur;
+    if (key === shownKey) return;
+    shownKey = key;
+    lockup.classList.toggle('gone', section !== 0);
+    Array.prototype.slice.call(wordsEl.querySelectorAll('.line')).forEach(function (n) { n.remove(); });
+    for (var j = 0; j <= cur; j++) {
+      if (lines[j].section !== section) continue;
+      var p = document.createElement('p');
+      p.className = 'line' + (lines[j].words > 18 ? ' long' : '') + (j < cur ? ' past' : '');
+      p.innerHTML = lines[j].html;
+      wordsEl.appendChild(p);
+    }
+  }
+
+  function renderApp(t) {
+    body.classList.toggle('app-on', t >= SCORE_FROM);
+    body.classList.toggle('fixing', t >= FIX_AT);
+    outcomeEls.forEach(function (li) { li.classList.toggle('on', t >= OUTCOME_AT[li.dataset.outcome]); });
+
+    var sp = clamp01((t - SCORE_FROM) / (SCORE_TO - SCORE_FROM));
+    var v = t >= SCORE_TO ? FINAL : SCORES[Math.min(SCORES.length - 1, Math.floor(sp * SCORES.length))];
+    scoreEl.textContent = t < SCORE_FROM ? '–' : v.toFixed(1);
+    meter.style.width = (t < SCORE_FROM ? 0 : v * 10) + '%';
+    levelEl.textContent = t >= SCORE_TO ? LEVEL : '';
+
+    // The transcript is what has been spoken so far.
+    var heard = lines.filter(function (l) { return l.at <= t; });
+    if (heard.length === transcript.childElementCount) return;
+    transcript.innerHTML = '';
+    heard.forEach(function (l, i) {
+      var p = document.createElement('p');
+      p.textContent = l.text;
+      if (i === heard.length - 1) { var c = document.createElement('span'); c.className = 'caret'; p.appendChild(c); }
+      transcript.appendChild(p);
+    });
+  }
+
+  function render(t) {
     progress.style.width = (t / DURATION * 100) + '%';
     progress.setAttribute('aria-valuenow', Math.floor(t));
-    hint.style.opacity = t < 4 || paused ? 1 : 0;
-    document.body.classList.toggle('corner', t >= 12);
-    document.body.classList.toggle('scoring', t >= SCORE_FROM);
-    document.body.classList.toggle('locked', t >= SCORE_LOCK);
-    var sp = Math.max(0, Math.min(1, (t - SCORE_FROM) / (SCORE_LOCK - SCORE_FROM)));
-    scoreNum.textContent = SCORES[Math.min(SCORES.length - 1, Math.floor(sp * SCORES.length))].toFixed(1);
-
-    for (var i = 0; i < scenes.length; i++) {
-      var sc = scenes[i];
-      var active = t >= sc.start && (t < sc.end || (sc.hold && t >= sc.end));
-      sc.el.classList.toggle('active', active);
-      if (!active) continue;
-      var lt = t - sc.start;
-      var latestGroup = null;
-      for (var j = 0; j < sc.items.length; j++) {
-        if (lt >= sc.items[j].at) latestGroup = sc.items[j].group;
-      }
-      for (var k = 0; k < sc.items.length; k++) {
-        var it = sc.items[k];
-        var reached = lt >= it.at;
-        if (reached && (instant || it.el.classList.contains('shown'))) it.el.classList.add('on');
-        else if (!reached) it.el.classList.remove('on');
-        it.el.classList.toggle('shown', reached);
-        if (it.line) it.el.classList.toggle('past', reached && it.group !== latestGroup);
-      }
-    }
+    body.classList.toggle('corner', t >= 10);
+    renderWords(t);
+    renderApp(t);
   }
 
   var t = 0;
@@ -248,28 +306,22 @@
   if (m) t = Math.min(DURATION, parseFloat(m[1]));
 
   function frame(now) {
-    if (last !== null && !paused) {
-      t = Math.min(DURATION, t + Math.min(0.25, (now - last) / 1000));
-    }
+    if (last !== null && !paused) t = Math.min(DURATION, t + Math.min(0.25, (now - last) / 1000));
     last = now;
     render(t);
     requestAnimationFrame(frame);
-  }
-
-  function setPaused(v) {
-    paused = v;
-    document.body.classList.toggle('paused', paused);
   }
 
   document.addEventListener('keydown', function (e) {
     if (e.code !== 'Space' && e.key !== ' ') return;
     e.preventDefault();
     if (e.repeat) return;
-    if (t >= DURATION) { t = 0; setPaused(false); return; }
-    setPaused(!paused);
+    if (t >= DURATION) { t = 0; paused = false; body.classList.remove('paused'); return; }
+    paused = !paused;
+    body.classList.toggle('paused', paused);
   });
 
-  render(t, true);
+  render(t);
   requestAnimationFrame(frame);
 })();
 </script>
