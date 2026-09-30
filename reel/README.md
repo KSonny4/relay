@@ -1,11 +1,12 @@
 # Relay pitch film
 
-Petr Kubelka's pitch film for Relay, the 60-second pitch in five scenes. He stands in front of it while he says the pitch. It comes in two versions:
+Petr Kubelka's pitch film for Relay. He stands in front of it while he says the pitch. The one-minute deck is the 60-second pitch in five scenes and answers only Execution, Usefulness and Clarity. It comes in two versions, and a two-minute deck extends it:
 
 | Version | File | Public URL |
 | --- | --- | --- |
 | Offline | `index.html` | https://relay-reel.onrender.com |
 | Online, beside the live app | `live.html` + `live_server.py` | https://relay-reel-live.onrender.com |
+| Two minutes | `two-minute.html` | https://relay-reel-two-minute.onrender.com |
 
 The offline version is one self-contained file. It makes no network calls, needs no API keys, and has no build step. The online version is described under [Online presentation](#online-presentation).
 
@@ -55,3 +56,13 @@ python3 reel/live_server.py
 Then open http://127.0.0.1:43126/. The local server serves `/` (`live.html`) and `/deck.html` (`index.html`).
 
 On Render, the `relay-reel-live` service runs the `python:3.12-alpine` image. `LIVE_HTML_B64` holds `live.html`, `DECK_HTML_B64` holds `index.html` and `LIVE_BOOT_B64` holds `live_server.py`. The start command is `python -c exec(__import__('base64').b64decode(__import__('os').environ['LIVE_BOOT_B64']))`.
+
+## Two-minute deck
+
+`two-minute.html` is the one-minute deck word for word (scenes 1 to 5), then three more slides, with the same score card, manual advance and black-and-white frame, and no live embed:
+
+6. How a take works: you speak, the words show with their times, the three scores and the total out of 20 update, and one line says what to fix.
+7. Technologies, only the ones that do that job: Deepgram turns speech into text, Jev scores the three questions from 1 to 5, the total is Execution × 2 + Usefulness + Clarity out of 20, and one model writes the single line to fix.
+8. What's next: today Relay judges this hackathon's three questions; next, the same critic for other hackathons.
+
+Serve it locally with `python3 -m http.server 43125 --bind 127.0.0.1 --directory reel` and open http://127.0.0.1:43125/two-minute.html. On Render, the `relay-reel-two-minute` service runs the same `python:3.12-alpine` static boot as `relay-reel`, with `REEL_HTML_B64` holding `two-minute.html`.
