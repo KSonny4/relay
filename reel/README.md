@@ -35,3 +35,9 @@ The words on screen are the "60 seconds" section of the pitch (`docs/pitch.md` i
 | 0:48–1:00 | "I am pitching Relay on Relay." "A developer should leave knowing what it is, why it helps, and what to do next." Then three large beats: "Talk." "Watch the score move." "Stop." The last frame holds. |
 
 From 0:12 on, a small "Petr Kubelka · Relay" lockup stays in the bottom-left corner.
+
+A score out of 10 sits in the top-right corner. It appears with "A score moves while you are still speaking", climbs from 1.0 to 7.8 while the pitch is spoken, and turns green and locks with "A long pause with no words locks it too." It stays on screen to the last frame. 7.8 is a sample value; the live app produces the real one.
+
+## Scene-by-scene version
+
+`story.html` is an alternative 60-second film that tells the same story with its own copy instead of the pitch text: title, the problem, the live score, the score locking, one overall score (7.8 / 10) and one sentence to improve, the saved recording and session, and a held frame of the working product. Open http://127.0.0.1:43125/story.html.

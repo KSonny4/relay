@@ -91,8 +91,25 @@
   #corner b { color: var(--accent); font-weight: 900; }
   body.corner #corner { opacity: 1; }
 
+  #score {
+    position: fixed; top: calc(var(--u) * 4); right: 4vw; z-index: 6;
+    display: flex; align-items: baseline; gap: calc(var(--u) * 1.2);
+    font-weight: 900; letter-spacing: -0.04em; font-variant-numeric: tabular-nums;
+    opacity: 0; transition: opacity .4s ease;
+  }
+  body.scoring #score { opacity: 1; }
+  #score .num { font-size: calc(var(--u) * 11); line-height: .9; color: var(--accent); }
+  #score .of { font-size: calc(var(--u) * 4.6); color: var(--muted); }
+  #score .dot {
+    align-self: center; width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4);
+    border-radius: 50%; background: var(--live); animation: pulse 1s ease-in-out infinite;
+  }
+  body.locked #score .num { color: var(--ok); }
+  body.locked #score .dot { background: var(--ok); border-radius: 12%; animation: none; }
+  body.paused #score .dot { animation-play-state: paused; }
+
   #pause {
-    position: fixed; top: calc(var(--u) * 3); right: 3vw; display: none; z-index: 20;
+    position: fixed; top: calc(var(--u) * 3); left: 7vw; display: none; z-index: 20;
     border: 3px solid var(--accent); border-radius: calc(var(--u) * 1.6);
     padding: calc(var(--u) * 1) calc(var(--u) * 2.4);
     background: var(--bg); color: var(--accent); font-weight: 800;
@@ -158,6 +175,7 @@
 </section>
 
 <div id="corner">Petr Kubelka · <b>Relay</b></div>
+<div id="score" aria-label="Score out of 10"><span class="dot" aria-hidden="true"></span><span class="num" id="score-num">1.0</span><span class="of">/ 10</span></div>
 <div id="pause">Paused · Space to resume</div>
 <div id="hint">Space: pause / resume</div>
 
@@ -183,7 +201,13 @@
 
   var progress = document.getElementById('progress');
   var hint = document.getElementById('hint');
+  var scoreNum = document.getElementById('score-num');
   var paused = false;
+
+  // The score appears with "A score moves…", moves while the pitch is spoken,
+  // and locks with "A long pause with no words locks it too."
+  var SCORE_FROM = 22.3, SCORE_LOCK = 35.2;
+  var SCORES = [1.0, 2.3, 3.3, 2.8, 4.3, 5.5, 5.0, 6.5, 7.3, 7.8];
 
   // Items are display:none until shown so layout reserves no space for unrevealed
   // sentences; "on" is applied a frame later so the fade-in transition runs.
@@ -192,6 +216,10 @@
     progress.setAttribute('aria-valuenow', Math.floor(t));
     hint.style.opacity = t < 4 || paused ? 1 : 0;
     document.body.classList.toggle('corner', t >= 12);
+    document.body.classList.toggle('scoring', t >= SCORE_FROM);
+    document.body.classList.toggle('locked', t >= SCORE_LOCK);
+    var sp = Math.max(0, Math.min(1, (t - SCORE_FROM) / (SCORE_LOCK - SCORE_FROM)));
+    scoreNum.textContent = SCORES[Math.min(SCORES.length - 1, Math.floor(sp * SCORES.length))].toFixed(1);
 
     for (var i = 0; i < scenes.length; i++) {
       var sc = scenes[i];
