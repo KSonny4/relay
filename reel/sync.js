@@ -1,15 +1,22 @@
 // Keeps a deck and its phone page on the same slide through this site's own server (/api/slide).
 // Opened from a file, there is no server and each page moves on its own.
-window.RelaySync = function (onSlide, onStatus) {
+window.RelaySync = function (onSlide, onStatus, onStop) {
   var enabled = /^https?:$/.test(location.protocol);
   // One move in flight at a time, so the server receives this page's moves in order; newer moves replace queued ones.
-  var inflight = false, queued = null, seen = 0, latest = null;
+  var inflight = false, queued = null, seen = 0, latest = null, stopSeen = -1, stopQueued = 0, stopBusy = false;
   onStatus = onStatus || function () {};
 
   function busy() { return inflight || queued !== null; }
+  function noteStop(state) {
+    if (!onStop || typeof state.stop !== 'number') return;
+    // The first snapshot is the count already on the server. A later press is a new count.
+    if (stopSeen < 0) { stopSeen = state.stop; return; }
+    if (state.stop > stopSeen) { stopSeen = state.stop; onStop(); }
+  }
   function apply(state) {
     if (!state || state.seq < seen) return;
     seen = state.seq;
+    noteStop(state);
     onSlide(state.slide);
   }
   function receive(state) {
@@ -61,12 +68,41 @@ window.RelaySync = function (onSlide, onStatus) {
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refresh(); });
   }
 
+  function flushStop() {
+    if (!enabled || stopBusy || stopQueued === 0) return;
+    stopQueued -= 1;
+    stopBusy = true;
+    fetch('/api/stop-recording', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}'
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (state) {
+      if (state && typeof state.stop === 'number') stopSeen = Math.max(stopSeen, state.stop);
+      onStatus(true);
+    }, function () {
+      onStatus(false);
+      stopQueued += 1;
+      return new Promise(function (r) { setTimeout(r, 1000); });
+    }).then(function () {
+      stopBusy = false;
+      flushStop();
+    });
+  }
+
   return {
     enabled: enabled,
     publish: function (slide) {
       if (!enabled) return;
       queued = slide;
       if (!inflight) flush();
+    },
+    stop: function () {
+      if (!enabled) return;
+      stopQueued += 1;
+      flushStop();
     }
   };
 };

@@ -6,8 +6,9 @@ Online (relay-reel-live): /  live.html       /deck.html  index.html      /contro
 /mode.js tells the deck and the phone page which site they are on; the online deck adds one intro slide.
 
 The current slide lives in this process, so each site's phone page moves only that site's deck:
-    GET  /api/slide         {"slide": 3, "seq": 12}
+    GET  /api/slide         {"slide": 3, "seq": 12, "stop": 0}
     POST /api/slide         {"slide": 4}  -> the new state
+    POST /api/stop-recording              -> {"stop": 1} and the deck posts it to the live app
     GET  /api/slide/events  server-sent events, one state per change
 
     python3 reel/server.py            # offline, http://127.0.0.1:43125
@@ -59,7 +60,8 @@ if MODE == "online":
     ROUTES["/deck.html"] = "index.html"
     ROUTES["/live.html"] = "live.html"
 
-state = {"slide": 1, "seq": 0}
+# `stop` counts Stop recording presses. It is not replayed to a deck that connects later.
+state = {"slide": 1, "seq": 0, "stop": 0}
 changed = threading.Condition()
 
 
@@ -74,6 +76,13 @@ def set_slide(slide):
             state["slide"] = slide
             state["seq"] += 1
             changed.notify_all()
+        return dict(state)
+
+
+def request_stop():
+    with changed:
+        state["stop"] += 1
+        changed.notify_all()
         return dict(state)
 
 
@@ -111,7 +120,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
     do_HEAD = do_GET
 
     def do_POST(self):
-        if self.path.split("?", 1)[0] != "/api/slide":
+        path = self.path.split("?", 1)[0]
+        if path == "/api/stop-recording":
+            length = int(self.headers.get("content-length") or 0)
+            if length:
+                self.rfile.read(min(length, 1024))
+            self.reply_json(200, request_stop())
+            return
+        if path != "/api/slide":
             self.reply_json(404, {"error": "Not found"})
             return
         length = int(self.headers.get("content-length") or 0)

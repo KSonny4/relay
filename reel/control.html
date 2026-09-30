@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#ffffff">
 <title>Relay · Phone control</title>
 <style>
-  :root { --bg: #ffffff; --fg: #0a0a0a; --muted: #555555; --dim: #737373; --soft: #f3f3f3; --line: #e2e2e2; }
+  :root { --bg: #ffffff; --fg: #0a0a0a; --muted: #555555; --dim: #737373; --soft: #f3f3f3; --line: #e2e2e2; --stop: #c40000; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: var(--bg); color: var(--fg); }
   body {
@@ -32,12 +32,23 @@
   #say p { font-size: 25px; font-weight: 700; line-height: 1.38; letter-spacing: -0.01em; }
   #say p + p { margin-top: 12px; }
   .em { font-weight: 900; }
+  #halt {
+    display: none; margin-top: 22px;
+    color: var(--stop); font-size: 32px; font-weight: 900; letter-spacing: -0.03em;
+  }
+  body.minute-end #halt { display: block; }
 
   nav {
     position: sticky; bottom: 0; background: var(--bg); border-top: 2px solid var(--line);
     display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   }
+  #stop {
+    grid-column: 1 / -1; height: 46px; border-radius: 14px;
+    border: 2px solid var(--stop); background: var(--bg); color: var(--stop);
+    font: inherit; font-size: 16px; font-weight: 900; cursor: pointer;
+  }
+  body.end-slide #stop { height: 76px; border-radius: 18px; background: var(--stop); color: var(--bg); font-size: 22px; }
   nav button {
     height: 76px; border-radius: 18px; border: 2px solid var(--fg);
     font: inherit; font-size: 22px; font-weight: 900; cursor: pointer;
@@ -56,8 +67,10 @@
 <div id="progress" aria-hidden="true"></div>
 <main>
   <div id="say" aria-live="polite" aria-label="Voiceover"></div>
+  <p id="halt">Stop here.</p>
 </main>
 <nav aria-label="Slides">
+  <button type="button" id="stop">Stop recording</button>
   <button type="button" id="back">Back</button>
   <button type="button" id="forward">Forward</button>
 </nav>
@@ -66,7 +79,10 @@
 <script src="sync.js"></script>
 <script>
 (function () {
-  var SLIDES = window.relayDeck().slides;
+  var DECK = window.relayDeck();
+  var SLIDES = DECK.slides;
+  // Slide 5 of the shared deck is the end of the one-minute talk. The online intro shifts it by one.
+  var MINUTE_END = DECK.offset + 5;
   var countEl = document.getElementById('count');
   var progress = document.getElementById('progress');
   var sayEl = document.getElementById('say');
@@ -89,6 +105,8 @@
     countEl.textContent = n + ' / ' + SLIDES.length;
     progress.style.width = (n / SLIDES.length * 100) + '%';
     sayEl.innerHTML = paras(s.say);
+    document.body.classList.toggle('minute-end', n === MINUTE_END);
+    document.body.classList.toggle('end-slide', n === MINUTE_END || n === SLIDES.length);
     back.disabled = n === 1;
     forward.disabled = n === SLIDES.length;
     window.scrollTo(0, 0);
@@ -117,6 +135,7 @@
   }
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') wake = null; });
 
+  document.getElementById('stop').addEventListener('click', function () { keepAwake(); sync.stop(); });
   back.addEventListener('click', function () { keepAwake(); go(slide - 1); });
   forward.addEventListener('click', function () { keepAwake(); go(slide + 1); });
   document.addEventListener('keydown', function (e) {
