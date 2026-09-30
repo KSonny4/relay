@@ -63,7 +63,7 @@ const DEEPGRAM_GRANT_URL = "https://api.deepgram.com/v1/auth/grant";
 const DEEPGRAM_LISTEN_URL =
   "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&paragraphs=true";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-const OPENAI_MODEL = "gpt-4.1-mini";
+const OPENAI_MODEL = "gpt-6.1-sol";
 const BODY_LIMIT = 32 * 1024 * 1024;
 
 export function httpError(status, message) {
@@ -631,6 +631,7 @@ async function scoreTranscript(fetchImpl, env, transcript) {
     { authorization: `Bearer ${env.OPENAI_API_KEY}` },
     {
       model: OPENAI_MODEL,
+      reasoning_effort: "low",
       messages: [
         {
           role: "system",

@@ -197,7 +197,8 @@ test("TYPESAFE_API_KEY posts three jev-latest score questions, then OpenAI, then
     assert.equal(fetchMock.calls[1].url, "https://api.openai.com/v1/chat/completions");
     assert.equal(fetchMock.calls[1].init.headers.authorization, "Bearer oa-test-key");
     const openaiBody = JSON.parse(fetchMock.calls[1].init.body);
-    assert.equal(openaiBody.model, "gpt-4.1-mini");
+    assert.equal(openaiBody.model, "gpt-6.1-sol");
+    assert.equal(openaiBody.reasoning_effort, "low");
     assert.equal(openaiBody.messages[0].content, CRITIC_INSTRUCTIONS);
     assert.equal(openaiBody.messages[1].content, transcript);
 
