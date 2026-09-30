@@ -1,6 +1,6 @@
 # Relay — judge run
 
-Two attempts. Attempt 1 is the 60-second motion page. Attempt 2 is the live app, and they stop it themselves. Recording length is arbitrary. The score updates while they speak. The take locks when they press stop or after a long pause with no words. The locked screen is the classification: overall score, level, confidence, and one recommendation.
+Two attempts. Attempt 1 is Petr Kubelka's own pitch page: the 60-second motion film in `reel/`. He is pitching the whole application from that page. Then the live app. They stop the live recording themselves. Recording length is arbitrary. The score updates while they speak. The take locks when they press stop or after a long pause with no words. The locked screen is the classification: overall score, level, confidence, and one recommendation.
 
 The score answers one question: how well does this pitch explain an idea that helps developers?
 
@@ -37,13 +37,17 @@ npm run dev
 
 Leave both running. Open the product at [http://127.0.0.1:43123](http://127.0.0.1:43123). It calls the server at [http://127.0.0.1:43124](http://127.0.0.1:43124).
 
-Motion page, Attempt 1 only: open `reel/index.html` in a browser, or the same page on port 43125. No install.
+Petr Kubelka's pitch page, Attempt 1 only: open `reel/index.html` in a browser, or the same film on port 43125. No install.
 
-## Attempt 1 — 60 seconds — motion
+## Attempt 1 — 60 seconds — Petr Kubelka's pitch
+
+This is his own pitch page, the motion film in `reel/`. He is pitching the whole application from that page.
 
 1. Open `reel/index.html`, or [http://127.0.0.1:43125](http://127.0.0.1:43125) if that page is being served.
-2. Let it play for the full minute.
+2. Let the film play for the full minute.
 3. Do not touch the live app during this minute. Leave [http://127.0.0.1:43123](http://127.0.0.1:43123) alone.
+
+Then go to the live app.
 
 ## Attempt 2 — live app
 
