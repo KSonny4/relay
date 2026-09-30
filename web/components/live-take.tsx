@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CriteriaScore } from "@/components/criteria-score";
+import { TimedScript } from "@/components/timed-script";
 import { nextAttempt } from "@/lib/attempt-number";
 import {
   classifyLive,
@@ -19,14 +20,14 @@ import {
   takeEnds,
   type ClassifyPlan,
 } from "@/lib/take-rules";
-import { combineTranscript } from "@/lib/transcript";
+import { emptyScript, type TranscriptScript } from "@/lib/transcript-script";
 
 type Phase = "recording" | "classifying";
 
 export function LiveTake() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("recording");
-  const [finals, setFinals] = useState("");
+  const [script, setScript] = useState<TranscriptScript>(emptyScript);
   const [criteria, setCriteria] = useState<Criteria>(emptyCriteria);
   const [error, setError] = useState<string | null>(null);
   const finishRef = useRef<() => void>(() => {});
@@ -87,16 +88,16 @@ export function LiveTake() {
         });
     }
 
-    function rememberTranscript(text: string) {
+    function rememberScript(next: TranscriptScript) {
       if (!stillThisTake()) return;
       const previous = finalsRef.current;
-      finalsRef.current = text;
-      setFinals(text);
+      finalsRef.current = next.transcript;
+      setScript(next);
       const now = performance.now();
-      lastWordsAtRef.current = nextWordsAt(previous, text, lastWordsAtRef.current, now);
+      lastWordsAtRef.current = nextWordsAt(previous, next.transcript, lastWordsAtRef.current, now);
       const step = onTranscriptEvent(classifyPlanRef.current, {
         atMs: now,
-        fullTranscript: text,
+        fullTranscript: next.transcript,
         isFinal: true,
       });
       classifyPlanRef.current = step.plan;
@@ -115,9 +116,9 @@ export function LiveTake() {
     async function transcribeCurrent() {
       const audio = currentAudio();
       if (!audio || !stillThisTake()) return;
-      const transcript = await transcribeAudio(await blobToBase64(audio.blob), audio.mimeType);
+      const next = await transcribeAudio(await blobToBase64(audio.blob), audio.mimeType);
       if (!stillThisTake()) return;
-      rememberTranscript(transcript);
+      rememberScript(next);
     }
 
     function queueTranscribe() {
@@ -155,12 +156,13 @@ export function LiveTake() {
       let transcript = finalsRef.current;
       if (audioBlob && audioBlob.size > 0) {
         try {
-          transcript = await transcribeAudio(
+          const next = await transcribeAudio(
             await blobToBase64(audioBlob),
             audioBlob.type || "audio/webm",
           );
-          finalsRef.current = transcript;
-          setFinals(transcript);
+          transcript = next.transcript;
+          finalsRef.current = next.transcript;
+          setScript(next);
         } catch (caught) {
           setError(caught instanceof Error ? caught.message : "Transcription failed.");
         }
@@ -255,7 +257,7 @@ export function LiveTake() {
     };
   }, [router]);
 
-  const transcript = combineTranscript(finals, "");
+  const transcript = script.transcript;
 
   return (
     <div className="flex min-h-dvh flex-col bg-white text-black md:grid md:h-dvh md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:overflow-hidden">
@@ -278,8 +280,8 @@ export function LiveTake() {
       </section>
       <section className="min-h-0 flex-1 overflow-y-auto px-[clamp(1.25rem,4vw,4rem)] py-[clamp(1.5rem,4vw,4rem)]">
         <div aria-live="polite" className="text-[clamp(1.5rem,2.6vw,2.25rem)] leading-snug break-words">
-          {transcript ? (
-            transcript
+          {transcript || script.sentences.length > 0 ? (
+            <TimedScript script={script} />
           ) : (
             <span className="text-neutral-500">
               {phase === "recording" ? "Waiting for speech." : "The words show up here."}

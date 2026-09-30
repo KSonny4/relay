@@ -1,6 +1,7 @@
 import { resolveRelayApiBase } from "./relay-api-base";
 import { readCriteria, type Criteria } from "./score-display";
 import { liveClassifyPayload } from "./take-rules";
+import { readTranscriptScript, type TimedSentence, type TranscriptScript } from "./transcript-script";
 
 export { LIVE_RELAY_API_BASE, resolveRelayApiBase } from "./relay-api-base";
 
@@ -23,6 +24,7 @@ export type SessionRecord = Classification & {
 
 export type SessionDetail = SessionRecord & {
   transcript: string;
+  sentences: TimedSentence[];
 };
 
 export type ClassifyInput = {
@@ -32,7 +34,7 @@ export type ClassifyInput = {
   mimeType?: string;
 };
 
-export async function transcribeAudio(audioBase64: string, mimeType: string): Promise<string> {
+export async function transcribeAudio(audioBase64: string, mimeType: string): Promise<TranscriptScript> {
   const response = await relayFetch(`${RELAY_API_BASE}/api/transcribe`, {
     method: "POST",
     cache: "no-store",
@@ -43,10 +45,14 @@ export async function transcribeAudio(audioBase64: string, mimeType: string): Pr
     throw new Error(`Transcription failed (${response.status}).`);
   }
   const body: unknown = await response.json();
-  if (!isRecord(body) || typeof body.transcript !== "string") {
+  if (!isRecord(body)) {
     throw new Error("Transcription response was missing a transcript.");
   }
-  return body.transcript;
+  const script = readTranscriptScript(body);
+  if (typeof body.transcript !== "string" && script.sentences.length === 0) {
+    throw new Error("Transcription response was missing a transcript.");
+  }
+  return script;
 }
 
 export async function classifyLive(transcript: string): Promise<LiveScore> {
@@ -154,8 +160,8 @@ function parseSession(body: unknown): SessionRecord {
 
 function parseSessionDetail(body: unknown): SessionDetail {
   const session = parseSession(body);
-  const transcript = isRecord(body) && typeof body.transcript === "string" ? body.transcript : "";
-  return { ...session, transcript };
+  const script = isRecord(body) ? readTranscriptScript(body) : { transcript: "", sentences: [] };
+  return { ...session, transcript: script.transcript, sentences: script.sentences };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
