@@ -1,6 +1,6 @@
 # Relay — judge run
 
-Two attempts. Attempt 1 is Petr Kubelka's own pitch page: the 60-second motion film in `reel/`. He is pitching the whole application from that page. Then the live app. They stop the live recording themselves. Recording length is arbitrary. The score updates while they speak. The take locks when they press stop or after a long pause with no words. The locked screen is the classification: overall score, level, confidence, and one recommendation.
+Two attempts. Attempt 1 is Petr Kubelka's own pitch page: the 60-second motion film in `reel/`. He is pitching the whole application from that page. Then the live app. They stop the live recording themselves. Recording length is arbitrary. While they speak, the live update is only the overall score, the level, and confidence. The take locks when they press stop or after a long pause with no words. The one recommendation appears when the take locks, not during the speech.
 
 The score answers one question: how well does this pitch explain an idea that helps developers?
 
@@ -53,19 +53,18 @@ Then go to the live app.
 
 Use the product at [http://127.0.0.1:43123](http://127.0.0.1:43123). The server on port 43124 is already running.
 
-Start a recording and speak. Recording length is arbitrary. The score updates while they speak: overall score, level, confidence, and one recommendation. Press stop. A long pause with no words also locks the take. After it locks, leave that classification on screen.
+Start a recording and speak. Recording length is arbitrary. While they speak, watch only the overall score, the level, and confidence. Press stop. A long pause with no words also locks the take. The one recommendation appears when the take locks, not during the speech. Leave that locked screen up.
 
 If the mic cannot be used, paste this pitch and press Classify so the score still appears:
 
-> Relay listens while a developer pitches an idea and writes the transcript as they speak. The score updates while they talk. They press stop when they are done. A long pause with no words also locks the take. The score is how well the pitch explains an idea that helps developers, plus the one thing to improve next. The recording and the session are saved.
+> Relay listens while a developer pitches an idea and writes the transcript as they speak. While they talk, the live update is the overall score, the level, and confidence for how well the pitch explains an idea that helps developers. They press stop when they are done. A long pause with no words also locks the take. The one recommendation appears when the take locks. The recording and the session are saved.
 
 ## End screen
 
-Stay on the locked classification:
+While they speak, the live update is:
 
 - Overall score
 - Level
 - Confidence
-- One recommendation
 
-That screen is the end of the run.
+When the take locks, the one recommendation appears with those three. Stay on that screen. That is the end of the run.
