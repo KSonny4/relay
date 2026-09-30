@@ -51,6 +51,37 @@ export function connectionStrings(info) {
   return { service, local };
 }
 
+export function renderRepoUrl(remote) {
+  if (!remote) return "";
+  let url;
+  try {
+    url = new URL(remote);
+  } catch {
+    return "";
+  }
+  url.username = "";
+  url.password = "";
+  const host = url.hostname;
+  const parts = url.pathname.replace(/\.git$/, "").split("/").filter(Boolean);
+  if (host === "github.com" || host === "gitlab.com" || host === "bitbucket.org") {
+    if (parts.length < 2) return "";
+    return `https://${host}/${parts.slice(-2).join("/")}`;
+  }
+  if (host === "origin.cursor.com" || host === "cursor.com") {
+    const gitAt = parts.indexOf("git");
+    const rest = (gitAt >= 0 ? parts.slice(gitAt + 1) : parts).filter((part) => part !== "codebase");
+    if (rest.length < 2) return "";
+    return `https://cursor.com/codebase/${rest.slice(0, 2).join("/")}`;
+  }
+  return "";
+}
+
+export function safeMessage(text) {
+  return String(text ?? "")
+    .replace(/\/\/([^/\s@]+)@/g, "//")
+    .replace(/x-access-token:[^\s@]+/gi, "x-access-token:[redacted]");
+}
+
 export function serviceEnvVars(env, databaseUrl) {
   const vars = [{ key: "DATABASE_URL", value: databaseUrl }];
   for (const key of SERVICE_SECRET_KEYS) {
@@ -117,7 +148,7 @@ export async function provisionRender({
 
   const ownersRes = await renderFetch(fetchImpl, token, "GET", "/owners");
   if (!ownersRes.ok) {
-    log(`Render owners request failed: ${ownersRes.status} ${errorMessage(ownersRes.json)}`);
+    log(`Render owners request failed: ${ownersRes.status} ${safeMessage(errorMessage(ownersRes.json))}`);
     return finish({ skipped: false, ok: false, localEnvWritten: false });
   }
   const owners = (Array.isArray(ownersRes.json) ? ownersRes.json : [])
@@ -131,7 +162,7 @@ export async function provisionRender({
 
   const listed = await renderFetch(fetchImpl, token, "GET", "/postgres?limit=100");
   if (!listed.ok) {
-    log(`Render postgres list failed: ${listed.status} ${errorMessage(listed.json)}`);
+    log(`Render postgres list failed: ${listed.status} ${safeMessage(errorMessage(listed.json))}`);
     return finish({ skipped: false, ok: false, localEnvWritten: false });
   }
   const existing = (Array.isArray(listed.json) ? listed.json : [])
@@ -150,7 +181,7 @@ export async function provisionRender({
       databaseUser: "relay",
     });
     if (!created.ok) {
-      log(`Render postgres create failed: ${created.status} ${errorMessage(created.json)}`);
+      log(`Render postgres create failed: ${created.status} ${safeMessage(errorMessage(created.json))}`);
       return finish({ skipped: false, ok: false, localEnvWritten: false });
     }
     postgresId = created.json?.id || unwrap(created.json, "postgres")?.id;
@@ -190,7 +221,7 @@ export async function provisionRender({
   const envVars = serviceEnvVars(env, info.service);
   const servicesRes = await renderFetch(fetchImpl, token, "GET", "/services?limit=100");
   if (!servicesRes.ok) {
-    log(`Render service list failed: ${servicesRes.status} ${errorMessage(servicesRes.json)}`);
+    log(`Render service list failed: ${servicesRes.status} ${safeMessage(errorMessage(servicesRes.json))}`);
     return finish({ skipped: false, ok: false, localEnvWritten: true });
   }
   const existingService = (Array.isArray(servicesRes.json) ? servicesRes.json : [])
@@ -206,7 +237,7 @@ export async function provisionRender({
       envVars,
     );
     if (!updated.ok) {
-      log(`Render env update failed: ${updated.status} ${errorMessage(updated.json)}`);
+      log(`Render env update failed: ${updated.status} ${safeMessage(errorMessage(updated.json))}`);
       return finish({ skipped: false, ok: false, localEnvWritten: true });
     }
     log("Render web service env updated");
@@ -239,7 +270,7 @@ export async function provisionRender({
     envVars,
   });
   if (!createdService.ok) {
-    log(`Render web service create failed: ${createdService.status} ${errorMessage(createdService.json)}`);
+    log(`Render web service create failed: ${createdService.status} ${safeMessage(errorMessage(createdService.json))}`);
     return finish({ skipped: false, ok: false, localEnvWritten: true });
   }
   log("Render web service created");
@@ -269,7 +300,7 @@ if (isMain) {
     env: process.env,
     fetchImpl: globalThis.fetch,
     writeFile: writeLocalFile,
-    repo: gitOutput(["remote", "get-url", "origin"]),
+    repo: renderRepoUrl(gitOutput(["remote", "get-url", "origin"])),
     branch: gitOutput(["rev-parse", "--abbrev-ref", "HEAD"]) || "main",
     poll: () => new Promise((resolve) => setTimeout(resolve, 2000)),
     maxConnectionAttempts: 30,

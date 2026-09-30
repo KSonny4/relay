@@ -8,6 +8,8 @@ import {
   localEnvFile,
   provisionRender,
   redact,
+  renderRepoUrl,
+  safeMessage,
   serviceEnvVars,
 } from "../src/provision.js";
 
@@ -164,4 +166,14 @@ test("blueprint has no secrets and connection helpers keep the token out of the 
   }), { service: INTERNAL, local: EXTERNAL });
   assert.equal(serviceEnvVars({ ONRENDER_URL: TOKEN, OPENAI_API_KEY: "oa" }, INTERNAL).some((item) => item.key === "ONRENDER_URL"), false);
   assert.equal(redact(`token ${TOKEN} db ${EXTERNAL}`, [TOKEN, EXTERNAL]).includes(TOKEN), false);
+  assert.equal(
+    renderRepoUrl("https://x-access-token:secret-token@origin.cursor.com/git/owner/repo.git"),
+    "https://cursor.com/codebase/owner/repo",
+  );
+  assert.equal(renderRepoUrl("https://github.com/owner/repo.git"), "https://github.com/owner/repo");
+  assert.equal(
+    renderRepoUrl("https://x-access-token:secret-token@github.com/owner/repo").includes("secret-token"),
+    false,
+  );
+  assert.equal(safeMessage("bad https://x-access-token:secret-token@example.com/git/a").includes("secret-token"), false);
 });
