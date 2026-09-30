@@ -19,6 +19,7 @@ import {
   takeEnds,
   type ClassifyPlan,
 } from "@/lib/take-rules";
+import { isPresentMode, shouldStartPresentedTake } from "@/lib/present-mode";
 import { emptyScript, type TranscriptScript } from "@/lib/transcript-script";
 
 type Phase = "recording" | "classifying";
@@ -247,10 +248,39 @@ export function LiveTake() {
       }
     }
 
-    void begin();
+    let starting = false;
+
+    function startTake() {
+      if (starting || recordingRef.current || finishingRef.current) return;
+      starting = true;
+      void begin().finally(() => {
+        starting = false;
+      });
+    }
+
+    const present = isPresentMode(window.location.search);
+    function onReelMessage(event: MessageEvent) {
+      if (
+        !shouldStartPresentedTake({
+          origin: event.origin,
+          data: event.data,
+          takeRunning: starting || recordingRef.current || finishingRef.current,
+        })
+      ) {
+        return;
+      }
+      startTake();
+    }
+
+    if (present) {
+      window.addEventListener("message", onReelMessage);
+    } else {
+      startTake();
+    }
 
     return () => {
       aborted.current = true;
+      if (present) window.removeEventListener("message", onReelMessage);
       finishRef.current = () => {};
       if (!finishingRef.current) releaseMedia();
     };
