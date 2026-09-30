@@ -5,7 +5,7 @@ export { LIVE_RELAY_API_BASE, resolveRelayApiBase } from "./relay-api-base";
 
 export const RELAY_API_BASE = resolveRelayApiBase(process.env.NEXT_PUBLIC_RELAY_API_BASE);
 
-export type Attempt = 1 | 2;
+export type Attempt = number;
 
 export type LiveScore = {
   score: number;
@@ -24,6 +24,11 @@ export type Classification = {
 
 export type SessionRecord = Classification & {
   createdAt: string;
+  transcript?: string;
+};
+
+export type SessionDetail = SessionRecord & {
+  transcript: string;
 };
 
 export type ClassifyInput = {
@@ -64,8 +69,8 @@ export async function classifyLive(transcript: string): Promise<LiveScore> {
 }
 
 export async function classifySession(input: ClassifyInput): Promise<Classification> {
-  if (input.attempt !== 1 && input.attempt !== 2) {
-    throw new Error("attempt must be 1 or 2");
+  if (!Number.isInteger(input.attempt) || input.attempt < 1) {
+    throw new Error("attempt must be an integer >= 1");
   }
   const payload: Record<string, string | number> = {
     attempt: input.attempt,
@@ -104,6 +109,18 @@ export async function listSessions(): Promise<SessionRecord[]> {
   return body.sessions.map(parseSession);
 }
 
+export async function getSession(id: string): Promise<SessionDetail> {
+  const response = await relayFetch(
+    `${RELAY_API_BASE}/api/sessions/${encodeURIComponent(id)}`,
+    { cache: "no-store" },
+    "Could not open that recording. The Relay API is not reachable.",
+  );
+  if (!response.ok) {
+    throw new Error(`Could not open that recording (${response.status}).`);
+  }
+  return parseSessionDetail(await response.json());
+}
+
 function parseLiveScore(body: unknown): LiveScore {
   if (!isRecord(body)) {
     throw new Error("Live score response was not an object.");
@@ -131,7 +148,8 @@ function parseClassification(body: unknown): Classification {
   if (typeof body.id !== "string") {
     throw new Error("Classification response was missing id.");
   }
-  if (body.attempt !== 1 && body.attempt !== 2) {
+  const attempt = body.attempt;
+  if (typeof attempt !== "number" || !Number.isInteger(attempt) || attempt < 1) {
     throw new Error("Classification response had an invalid attempt.");
   }
   if (typeof body.score !== "number") {
@@ -148,7 +166,7 @@ function parseClassification(body: unknown): Classification {
   }
   return {
     id: body.id,
-    attempt: body.attempt,
+    attempt,
     score: body.score,
     level: body.level,
     confidence: body.confidence,
@@ -161,7 +179,18 @@ function parseSession(body: unknown): SessionRecord {
   if (!isRecord(body) || typeof body.createdAt !== "string") {
     throw new Error("A past session was missing createdAt.");
   }
-  return { ...classification, createdAt: body.createdAt };
+  const transcript = typeof body.transcript === "string" ? body.transcript : undefined;
+  return transcript === undefined
+    ? { ...classification, createdAt: body.createdAt }
+    : { ...classification, createdAt: body.createdAt, transcript };
+}
+
+function parseSessionDetail(body: unknown): SessionDetail {
+  const session = parseSession(body);
+  if (!isRecord(body) || typeof body.transcript !== "string") {
+    throw new Error("That recording was missing a transcript.");
+  }
+  return { ...session, transcript: body.transcript };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

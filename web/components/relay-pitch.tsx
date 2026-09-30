@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { nextAttempt } from "@/lib/attempt-number";
 import { startLiveSession, type LiveSession } from "@/lib/deepgram-live";
 import {
   classifyLive,
   classifySession,
   fetchDeepgramAccessToken,
+  getSession,
   listSessions,
-  type Attempt,
-  type Classification,
   type LiveScore,
   type SessionRecord,
 } from "@/lib/relay-api";
@@ -23,23 +23,31 @@ import {
 import { formatScoreOutOfTen } from "@/lib/score-display";
 import { applyTranscriptPiece, combineTranscript } from "@/lib/transcript";
 
-type Phase = "idle" | "recording" | "classifying" | "done";
+type Phase = "idle" | "recording" | "classifying";
+
+type OpenedTake = {
+  id: string;
+  score: number;
+  level: string;
+  recommendation: string;
+  transcript: string;
+};
 
 export function RelayPitch() {
-  const [attempt, setAttempt] = useState<Attempt>(1);
   const [phase, setPhase] = useState<Phase>("idle");
   const [finals, setFinals] = useState("");
   const [interim, setInterim] = useState("");
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [paste, setPaste] = useState("");
   const [liveScore, setLiveScore] = useState<LiveScore | null>(null);
   const [liveScoreError, setLiveScoreError] = useState<string | null>(null);
-  const [result, setResult] = useState<Classification | null>(null);
+  const [opened, setOpened] = useState<OpenedTake | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
 
-  const attemptRef = useRef<Attempt>(1);
+  const attemptRef = useRef(1);
   const finalsRef = useRef("");
   const interimRef = useRef("");
   const chunksRef = useRef<Blob[]>([]);
@@ -55,33 +63,39 @@ export function RelayPitch() {
   const startedAtRef = useRef(0);
   const lastWordsAtRef = useRef(0);
   const recordingRef = useRef(false);
+  const sessionsRef = useRef<SessionRecord[]>([]);
+
+  const rememberSessions = useCallback((next: SessionRecord[]) => {
+    sessionsRef.current = next;
+    setSessions(next);
+  }, []);
 
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
     setSessionsError(null);
     try {
-      setSessions(await listSessions());
+      rememberSessions(await listSessions());
     } catch (caught) {
       setSessionsError(
-        caught instanceof Error ? caught.message : "Could not load past sessions.",
+        caught instanceof Error ? caught.message : "Could not load recordings.",
       );
     } finally {
       setSessionsLoading(false);
     }
-  }, []);
+  }, [rememberSessions]);
 
   useEffect(() => {
     let cancelled = false;
     listSessions()
       .then((next) => {
         if (cancelled) return;
-        setSessions(next);
+        rememberSessions(next);
         setSessionsError(null);
       })
       .catch((caught: unknown) => {
         if (cancelled) return;
         setSessionsError(
-          caught instanceof Error ? caught.message : "Could not load past sessions.",
+          caught instanceof Error ? caught.message : "Could not load recordings.",
         );
       })
       .finally(() => {
@@ -90,7 +104,7 @@ export function RelayPitch() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [rememberSessions]);
 
   useEffect(() => {
     return () => {
@@ -103,12 +117,6 @@ export function RelayPitch() {
       takeIdRef.current += 1;
     };
   }, []);
-
-  function selectAttempt(next: Attempt) {
-    if (phase === "recording" || phase === "classifying") return;
-    attemptRef.current = next;
-    setAttempt(next);
-  }
 
   function clearTimer() {
     if (timerRef.current !== null) {
@@ -209,9 +217,15 @@ export function RelayPitch() {
             }
           : {}),
       });
-      setResult(classification);
+      setOpened({
+        id: classification.id,
+        score: classification.score,
+        level: classification.level,
+        recommendation: classification.recommendation,
+        transcript,
+      });
       setError(null);
-      setPhase("done");
+      setPhase("idle");
       void loadSessions();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Classification failed.");
@@ -222,17 +236,15 @@ export function RelayPitch() {
   }
 
   async function startRecording() {
-    if (
-      startingRef.current ||
-      finishingRef.current ||
-      phase === "recording" ||
-      phase === "classifying"
-    ) {
+    if (phase === "recording") {
+      await finishRecording();
       return;
     }
+    if (startingRef.current || finishingRef.current || phase === "classifying") return;
     startingRef.current = true;
+    attemptRef.current = nextAttempt(sessionsRef.current.map((session) => session.attempt));
     setError(null);
-    setResult(null);
+    setOpened(null);
     setLiveScore(null);
     setLiveScoreError(null);
     finalsRef.current = "";
@@ -248,7 +260,7 @@ export function RelayPitch() {
     let stream: MediaStream | null = null;
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("This browser has no microphone. Paste a transcript to classify.");
+        throw new Error("No microphone. Paste a transcript instead.");
       }
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -300,17 +312,25 @@ export function RelayPitch() {
       return;
     }
     if (phase === "recording" || phase === "classifying") return;
+    attemptRef.current = nextAttempt(sessionsRef.current.map((session) => session.attempt));
     setError(null);
-    setResult(null);
-    setLiveScore(null);
+    setOpened(null);
     setPhase("classifying");
     try {
       const classification = await classifySession({
         attempt: attemptRef.current,
         transcript,
       });
-      setResult(classification);
-      setPhase("done");
+      setOpened({
+        id: classification.id,
+        score: classification.score,
+        level: classification.level,
+        recommendation: classification.recommendation,
+        transcript,
+      });
+      setPaste("");
+      setPasteOpen(false);
+      setPhase("idle");
       void loadSessions();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Classification failed.");
@@ -318,263 +338,170 @@ export function RelayPitch() {
     }
   }
 
-  const showResult = phase === "done" && result !== null;
-  const showLiveScore = !showResult && (phase === "recording" || liveScore !== null);
+  async function openRecording(id: string) {
+    if (recordingRef.current || phase === "recording" || phase === "classifying") return;
+    setError(null);
+    try {
+      const detail = await getSession(id);
+      setOpened({
+        id: detail.id,
+        score: detail.score,
+        level: detail.level,
+        recommendation: detail.recommendation,
+        transcript: detail.transcript,
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not open that recording.");
+    }
+  }
+
+  const liveTranscript = combineTranscript(finals, interim);
+  const showingLive = phase === "recording" || phase === "classifying";
+  const score = showingLive ? (liveScore?.score ?? null) : (opened?.score ?? null);
+  const transcript = showingLive ? liveTranscript : (opened?.transcript ?? "");
+  const history = [...sessions].sort(newestFirst);
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
-      <header className="flex flex-col gap-2">
-        <p className="text-sm font-medium tracking-wide text-amber-800 uppercase">Relay</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-stone-950 sm:text-4xl">
-          Pitch classification
-        </h1>
-        <p className="max-w-xl text-base leading-7 text-stone-600">
-          Record a pitch for an idea that helps developers. There is no time limit. Press
-          stop when you are done. About 10 seconds with no new words also ends the take.
-          The score updates while you speak. The recommendation appears after the take ends.
-        </p>
+    <div className="min-h-screen bg-white text-black">
+      <header className="flex items-center border-b border-black/10 px-8 py-5 xl:px-12">
+        <p className="text-sm tracking-[0.18em] uppercase">Relay</p>
       </header>
-
-      <section className="flex flex-col gap-6 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-8">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <AttemptButton
-            selected={attempt === 1}
-            disabled={phase === "recording" || phase === "classifying"}
-            onClick={() => selectAttempt(1)}
-            title="Attempt 1"
-          />
-          <AttemptButton
-            selected={attempt === 2}
-            disabled={phase === "recording" || phase === "classifying"}
-            onClick={() => selectAttempt(2)}
-            title="Attempt 2"
-          />
-        </div>
-
-        <p className="text-sm text-stone-500">
-          {phase === "recording"
-            ? "Recording. The score updates as each phrase finishes."
-            : phase === "classifying"
-              ? "Saving this attempt."
-              : "No time limit. Stop when you are done, or after about 10 seconds without new words."}
-        </p>
-
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={() => void startRecording()}
-            disabled={phase === "recording" || phase === "classifying"}
-            className="h-12 flex-1 rounded-full bg-stone-950 px-5 text-base font-medium text-white disabled:cursor-not-allowed disabled:bg-stone-300"
-          >
-            {phase === "recording" ? "Recording" : `Start attempt ${attempt}`}
-          </button>
-          <button
-            type="button"
-            onClick={() => void finishRecording()}
-            disabled={phase !== "recording"}
-            className="h-12 flex-1 rounded-full border border-stone-300 px-5 text-base font-medium text-stone-950 disabled:cursor-not-allowed disabled:text-stone-400"
-          >
-            Stop and save
-          </button>
-        </div>
-
-        {error ? (
-          <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">
-            {error}
-          </p>
-        ) : null}
-
-        {showLiveScore ? (
-          <LiveScorePanel score={liveScore} error={liveScoreError} waiting={phase === "recording" && liveScore === null} />
-        ) : null}
-
-        <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium text-stone-700">Live transcript</h2>
-          <div
-            aria-live="polite"
-            className="min-h-28 rounded-xl bg-stone-50 px-4 py-3 text-base leading-7 text-stone-800"
-          >
-            {finals || interim.trim() ? (
-              <>
-                {finals}
-                {interim.trim() ? (
-                  <span className="text-stone-500">
-                    {finals.trim() ? " " : ""}
-                    {interim.trim()}
-                  </span>
-                ) : null}
-              </>
-            ) : phase === "recording" ? (
-              "Waiting for speech…"
+      <div className="grid min-h-[calc(100vh-4.25rem)] lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <main className="grid content-start gap-12 px-8 py-12 xl:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] xl:content-stretch xl:gap-20 xl:px-14 xl:py-16">
+          <div className="flex flex-col">
+            {showingLive || opened ? (
+              <Rating score={score} pending={showingLive && score === null} />
             ) : (
-              "The transcript appears here while the microphone is open."
+              <h1 className="max-w-sm text-6xl leading-none tracking-tight xl:text-7xl">
+                Record a pitch.
+              </h1>
             )}
-          </div>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-8">
-        <h2 className="text-lg font-semibold text-stone-950">Paste a transcript</h2>
-        <p className="text-sm leading-6 text-stone-600">
-          Use this when the microphone or Deepgram token is missing. Classify saves the
-          attempt and shows the same end screen as a recording.
-        </p>
-        <textarea
-          value={paste}
-          onChange={(event) => setPaste(event.target.value)}
-          rows={5}
-          placeholder="Paste the pitch transcript"
-          className="w-full resize-y rounded-xl border border-stone-300 px-4 py-3 text-base leading-7 text-stone-900 outline-none focus:border-stone-950"
-        />
-        <button
-          type="button"
-          onClick={() => void classifyPaste()}
-          disabled={phase === "recording" || phase === "classifying"}
-          className="h-12 rounded-full bg-amber-800 px-5 text-base font-medium text-white disabled:cursor-not-allowed disabled:bg-stone-300 sm:self-start sm:px-8"
-        >
-          Classify
-        </button>
-      </section>
-
-      {showResult && result ? <ClassificationCard result={result} /> : null}
-
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-stone-950">Past sessions</h2>
-          <button
-            type="button"
-            onClick={() => void loadSessions()}
-            className="text-sm font-medium text-stone-600 underline-offset-4 hover:underline"
-          >
-            Refresh
-          </button>
-        </div>
-        {sessionsLoading ? (
-          <p className="text-sm text-stone-500">Loading past sessions…</p>
-        ) : sessionsError ? (
-          <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">
-            {sessionsError}
-          </p>
-        ) : sessions.length === 0 ? (
-          <p className="text-sm text-stone-500">No pitches classified yet.</p>
-        ) : (
-          <ul className="divide-y divide-stone-200 overflow-hidden rounded-2xl border border-stone-200 bg-white">
-            {sessions.map((session) => (
-              <li
-                key={session.id}
-                className="grid grid-cols-1 gap-1 px-4 py-3 text-sm sm:grid-cols-3 sm:items-center"
+            {!showingLive && opened ? (
+              <div className="mt-8 max-w-sm">
+                <p className="text-lg leading-7">{opened.level}</p>
+                <p className="mt-4 text-base leading-7 text-neutral-500">{opened.recommendation}</p>
+              </div>
+            ) : null}
+            {showingLive ? (
+              <p className="mt-6 text-sm text-neutral-500">
+                {phase === "classifying" ? "Saving." : "Listening."}
+              </p>
+            ) : null}
+            {liveScoreError ? <p className="mt-3 text-sm text-neutral-500">{liveScoreError}</p> : null}
+            {error ? (
+              <p role="alert" className="mt-4 max-w-sm text-sm">
+                {error}
+              </p>
+            ) : null}
+            <div className="mt-10">
+              <button
+                type="button"
+                onClick={() => void startRecording()}
+                disabled={phase === "classifying"}
+                className="h-12 rounded-full bg-black px-8 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <span className="font-medium text-stone-950">Attempt {session.attempt}</span>
-                <span className="text-stone-700">Score {formatScoreOutOfTen(session.score)}</span>
-                <time dateTime={session.createdAt} className="text-stone-500 sm:text-right">
-                  {formatSessionTime(session.createdAt)}
-                </time>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+                {phase === "recording" ? "Stop" : phase === "classifying" ? "Saving" : "Record"}
+              </button>
+              {pasteOpen ? (
+                <form
+                  className="mt-8 max-w-sm"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void classifyPaste();
+                  }}
+                >
+                  <textarea
+                    value={paste}
+                    onChange={(event) => setPaste(event.target.value)}
+                    rows={3}
+                    placeholder="Paste a transcript"
+                    className="w-full resize-none border-b border-black/20 bg-transparent py-2 text-sm leading-6 outline-none"
+                  />
+                  <button type="submit" className="mt-3 text-sm text-neutral-500 underline-offset-4 hover:underline">
+                    Classify paste
+                  </button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPasteOpen(true)}
+                  className="mt-4 block text-sm text-neutral-500"
+                >
+                  Paste a transcript
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="min-h-40 xl:min-h-0">
+            <p className="text-xs tracking-[0.16em] text-neutral-500 uppercase">Transcript</p>
+            <div aria-live="polite" className="mt-4 text-2xl leading-snug xl:text-3xl xl:leading-snug">
+              {transcript ? (
+                transcript
+              ) : (
+                <span className="text-neutral-500">
+                  {phase === "recording" ? "Waiting for speech." : "The words show up here."}
+                </span>
+              )}
+            </div>
+          </div>
+        </main>
+        <aside className="border-t border-black/10 px-8 py-10 lg:border-t-0 lg:border-l lg:px-8">
+          <h2 className="text-xs tracking-[0.16em] text-neutral-500 uppercase">Recordings</h2>
+          {sessionsLoading ? (
+            <p className="mt-8 text-sm text-neutral-500">Loading.</p>
+          ) : sessionsError ? (
+            <p role="alert" className="mt-8 text-sm">
+              {sessionsError}
+            </p>
+          ) : history.length === 0 ? (
+            <p className="mt-8 text-sm text-neutral-500">No recordings yet.</p>
+          ) : (
+            <ul className="mt-4">
+              {history.map((session) => {
+                const selected = opened?.id === session.id && !showingLive;
+                return (
+                  <li key={session.id} className="border-b border-black/10">
+                    <button
+                      type="button"
+                      onClick={() => void openRecording(session.id)}
+                      disabled={showingLive}
+                      className={`flex w-full items-baseline justify-between gap-4 py-4 text-left text-sm disabled:cursor-default ${
+                        selected ? "font-medium" : ""
+                      }`}
+                    >
+                      <time dateTime={session.createdAt}>{formatSessionTime(session.createdAt)}</time>
+                      <span className="tabular-nums">{formatScoreOutOfTen(session.score)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </aside>
+      </div>
+    </div>
   );
 }
 
-function AttemptButton({
-  selected,
-  disabled,
-  onClick,
-  title,
-}: {
-  selected: boolean;
-  disabled: boolean;
-  onClick: () => void;
-  title: string;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      disabled={disabled}
-      onClick={onClick}
-      className={`rounded-xl border px-4 py-3 text-left text-base font-medium disabled:cursor-not-allowed ${
-        selected
-          ? "border-stone-950 bg-stone-950 text-white"
-          : "border-stone-300 bg-white text-stone-950"
-      }`}
-    >
-      {title}
-    </button>
-  );
-}
-
-function ScoreReadout({ score, className }: { score: number; className: string }) {
-  const label = formatScoreOutOfTen(score);
+function Rating({ score, pending }: { score: number | null; pending: boolean }) {
+  const label = score === null ? "— / 10" : formatScoreOutOfTen(score);
   const [value, scale] = label.split(" / ");
   return (
-    <p className={`font-semibold tabular-nums ${className}`} aria-label={label}>
-      <span>{value}</span>
-      <span className="text-[0.42em] font-medium text-stone-400"> / {scale}</span>
+    <p
+      className={`text-8xl leading-none tracking-tight xl:text-[8.5rem] ${pending ? "text-neutral-400" : "text-black"}`}
+      aria-label={label}
+    >
+      <span className="font-medium tabular-nums">{value}</span>
+      <span className="text-[0.32em] font-normal text-neutral-500"> / {scale}</span>
     </p>
   );
 }
 
-function LiveScorePanel({
-  score,
-  error,
-  waiting,
-}: {
-  score: LiveScore | null;
-  error: string | null;
-  waiting: boolean;
-}) {
-  return (
-    <section aria-live="polite" aria-label="Live score" className="rounded-2xl bg-stone-950 px-5 py-6 text-white">
-      <p className="text-sm text-stone-400">Live score</p>
-      {score ? (
-        <>
-          <ScoreReadout score={score.score} className="mt-2 text-6xl sm:text-7xl" />
-          <p className="mt-4 text-xl leading-8">{score.level}</p>
-          <p className="mt-3 text-sm text-stone-300">Confidence {score.confidence}</p>
-        </>
-      ) : (
-        <p className="mt-3 text-2xl font-medium">
-          {waiting ? "Waiting for a finished phrase." : "No score yet."}
-        </p>
-      )}
-      <p className="mt-4 text-sm text-stone-400">
-        The recommendation appears when the take ends.
-      </p>
-      {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
-    </section>
-  );
-}
-
-function ClassificationCard({ result }: { result: Classification }) {
-  return (
-    <section aria-label="Final classification" className="rounded-2xl bg-stone-950 p-5 text-white sm:p-8">
-      <p className="text-sm text-stone-400">Attempt {result.attempt} ended</p>
-      <h2 className="mt-2 text-lg font-semibold">Final score</h2>
-      <dl className="mt-6 grid gap-5">
-        <div>
-          <dt className="text-sm text-stone-400">Overall score</dt>
-          <dd className="mt-1">
-            <ScoreReadout score={result.score} className="text-5xl" />
-          </dd>
-        </div>
-        <div>
-          <dt className="text-sm text-stone-400">Level</dt>
-          <dd className="mt-1 text-xl leading-8">{result.level}</dd>
-        </div>
-        <div>
-          <dt className="text-sm text-stone-400">Confidence</dt>
-          <dd className="mt-1 text-xl tabular-nums">{result.confidence}</dd>
-        </div>
-        <div>
-          <dt className="text-sm text-stone-400">Recommendation</dt>
-          <dd className="mt-1 text-base leading-7 text-stone-100">{result.recommendation}</dd>
-        </div>
-      </dl>
-    </section>
-  );
+function newestFirst(a: SessionRecord, b: SessionRecord): number {
+  const left = Date.parse(a.createdAt);
+  const right = Date.parse(b.createdAt);
+  if (Number.isNaN(left) || Number.isNaN(right)) return 0;
+  return right - left;
 }
 
 function formatSessionTime(createdAt: string): string {

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Relay pitch classification",
-  description: "Record a developer pitch. The score updates while you speak, and the recommendation appears when the take ends.",
+  title: "Relay",
+  description: "Record a pitch. The score updates while you speak.",
 };
 
 export default function RootLayout({

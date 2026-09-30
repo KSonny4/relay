@@ -1,8 +1,6 @@
 # Relay pitch
 
-Next.js page for Relay pitch classification. A take has no time limit. It ends when you press stop, or after about 10 seconds with no new words.
-
-While the microphone is open, each finished phrase updates the on-screen score. Scores are shown out of 10. The recommendation appears after the take is saved.
+Desktop page for Relay pitch classification. One Record button. The score, out of 10, updates while the microphone is open. Past recordings sit in a side list.
 
 ## Run
 
@@ -12,9 +10,7 @@ npm install
 npm run dev
 ```
 
-The app serves on [http://127.0.0.1:43123](http://127.0.0.1:43123). By default it calls the live Relay API at `https://relay-server-9hzn.onrender.com`. Set `NEXT_PUBLIC_RELAY_API_BASE=http://127.0.0.1:43124` to use a local API instead.
-
-`POST /api/classify` updates the live score. `POST /api/sessions` saves the take when it ends. The browser asks `POST /api/deepgram/token` for a short-lived Deepgram access token. The long-lived Deepgram key is not part of this app.
+The app serves on [http://127.0.0.1:43123](http://127.0.0.1:43123). By default it calls `https://relay-server-9hzn.onrender.com`. Set `NEXT_PUBLIC_RELAY_API_BASE=http://127.0.0.1:43124` to use a local API instead.
 
 ## Test
 
