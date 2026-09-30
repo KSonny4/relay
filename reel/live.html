@@ -62,11 +62,17 @@
   // The live app starts recording once, when the presenter leaves the intro slide (1) for slide 2,
   // from the keyboard, a click or the phone. Slides taken over from the server on load do not count.
   var WEB_ORIGIN = 'https://relay-web-s1d6.onrender.com';
-  var slide = 0, startSent = false;
+  var slide = 0, startSent = false, webLoaded = false, startWaiting = false;
   function startRecording() {
     startSent = true;
+    if (!webLoaded) { startWaiting = true; return; }
     web.contentWindow.postMessage({ type: 'relay:start-recording' }, WEB_ORIGIN);
   }
+  // A cold app may still be loading when the presenter moves on; the message then goes as soon as it has loaded.
+  web.addEventListener('load', function () {
+    webLoaded = true;
+    if (startWaiting) { startWaiting = false; web.contentWindow.postMessage({ type: 'relay:start-recording' }, WEB_ORIGIN); }
+  });
 
   // The slides report every change, including ones made from the phone, so this address shows the slide too.
   window.addEventListener('message', function (e) {
