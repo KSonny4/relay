@@ -21,15 +21,20 @@ describe("take end", () => {
     }
   });
 
-  it("stop and 10s of silence both end the take", () => {
+  it("silence and pauses do not end the take", () => {
+    for (const msSinceLastWords of [0, 9_999, 10_000, 30_000, 120_000]) {
+      assert.equal(
+        takeEnds({ elapsedMs: 60_000, msSinceLastWords, userStopped: false }),
+        false,
+      );
+    }
+  });
+
+  it("the user stopping ends the take", () => {
     assert.equal(takeEnds({ elapsedMs: 500, msSinceLastWords: 0, userStopped: true }), true);
     assert.equal(
-      takeEnds({ elapsedMs: 60_000, msSinceLastWords: 10_000, userStopped: false }),
+      takeEnds({ elapsedMs: 0, msSinceLastWords: 120_000, userStopped: true }),
       true,
-    );
-    assert.equal(
-      takeEnds({ elapsedMs: 12_000, msSinceLastWords: 9_999, userStopped: false }),
-      false,
     );
   });
 });

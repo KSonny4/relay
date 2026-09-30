@@ -1,4 +1,3 @@
-export const SILENCE_END_MS = 10_000;
 export const CLASSIFY_MIN_INTERVAL_MS = 2_000;
 
 export type TakeClock = {
@@ -8,12 +7,11 @@ export type TakeClock = {
 };
 
 /**
- * Length is arbitrary. Elapsed time never ends a take.
- * The take ends when the user stops it, or after 10 seconds with no new words.
+ * Length is arbitrary. Elapsed time, silence, and pauses never end a take.
+ * The take ends only when the user stops it.
  */
 export function takeEnds(clock: TakeClock): boolean {
-  if (clock.userStopped) return true;
-  return clock.msSinceLastWords >= SILENCE_END_MS;
+  return clock.userStopped;
 }
 
 export function nextWordsAt(
