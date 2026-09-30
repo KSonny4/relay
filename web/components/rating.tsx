@@ -5,7 +5,7 @@ export function Rating({ score, pending = false }: { score: number | null; pendi
   const [value, scale] = label.split(" / ");
   return (
     <p
-      className={`text-[8.5rem] leading-none tracking-tight ${pending ? "text-neutral-400" : "text-black"}`}
+      className={`text-[clamp(3.5rem,14vw,8.5rem)] leading-none tracking-tight ${pending ? "text-neutral-400" : "text-black"}`}
       aria-label={label}
     >
       <span className="font-medium tabular-nums">{value}</span>

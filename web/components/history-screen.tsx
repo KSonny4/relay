@@ -62,7 +62,7 @@ export function HistoryScreen() {
 
   return (
     <DeskFrame>
-      <main className="px-12 py-10">
+      <main className="w-full px-[clamp(1.25rem,4vw,3rem)] py-8 md:py-10">
         <h1 className="text-xs tracking-[0.16em] text-neutral-500 uppercase">Recordings</h1>
         {loading ? (
           <p className="mt-10 text-sm text-neutral-500">Loading.</p>
@@ -78,10 +78,12 @@ export function HistoryScreen() {
               <li key={session.id} className="border-b border-black/10">
                 <Link
                   href={`/sessions/${session.id}`}
-                  className="flex items-baseline justify-between gap-16 py-5 text-lg"
+                  className="flex items-baseline justify-between gap-4 py-4 text-base md:gap-16 md:py-5 md:text-lg"
                 >
-                  <time dateTime={session.createdAt}>{formatSessionTime(session.createdAt)}</time>
-                  <span className="tabular-nums">{formatScoreOutOfTen(session.score)}</span>
+                  <time dateTime={session.createdAt} className="min-w-0">
+                    {formatSessionTime(session.createdAt)}
+                  </time>
+                  <span className="shrink-0 tabular-nums">{formatScoreOutOfTen(session.score)}</span>
                 </Link>
               </li>
             ))}

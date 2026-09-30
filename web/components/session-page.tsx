@@ -26,13 +26,13 @@ export function SessionPage({ id }: { id: string }) {
 
   return (
     <DeskFrame>
-      <main className="grid flex-1 grid-cols-[minmax(28rem,0.85fr)_minmax(0,1.15fr)]">
-        <div className="border-r border-black/10 px-12 py-16">
+      <main className="grid flex-1 grid-cols-1 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+        <div className="border-b border-black/10 px-[clamp(1.25rem,4vw,3rem)] py-10 md:border-r md:border-b-0 md:py-16">
           <Rating score={detail?.score ?? null} pending={!detail && !error} />
         </div>
-        <div className="px-12 py-16">
+        <div className="px-[clamp(1.25rem,4vw,3rem)] py-10 md:py-16">
           <p className="text-xs tracking-[0.16em] text-neutral-500 uppercase">Next</p>
-          <div className="mt-8 text-4xl leading-snug">
+          <div className="mt-6 text-[clamp(1.5rem,2.4vw,2.25rem)] leading-snug break-words md:mt-8">
             {error ? (
               <p role="alert" className="text-base">
                 {error}

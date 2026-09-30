@@ -250,8 +250,8 @@ export function LiveTake() {
   const transcript = combineTranscript(finals, interim);
 
   return (
-    <div className="grid h-screen grid-cols-[minmax(28rem,0.85fr)_minmax(0,1.15fr)] bg-white text-black">
-      <section className="flex flex-col justify-between border-r border-black/10 px-16 py-16">
+    <div className="flex min-h-dvh flex-col bg-white text-black md:grid md:h-dvh md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:overflow-hidden">
+      <section className="flex flex-col gap-10 border-b border-black/10 px-[clamp(1.25rem,4vw,4rem)] py-[clamp(1.5rem,4vw,4rem)] md:justify-between md:border-r md:border-b-0">
         <Rating score={score} pending={score === null} />
         <div>
           {error ? (
@@ -275,8 +275,8 @@ export function LiveTake() {
           )}
         </div>
       </section>
-      <section className="overflow-y-auto px-16 py-16">
-        <div aria-live="polite" className="text-4xl leading-snug">
+      <section className="min-h-0 flex-1 overflow-y-auto px-[clamp(1.25rem,4vw,4rem)] py-[clamp(1.5rem,4vw,4rem)]">
+        <div aria-live="polite" className="text-[clamp(1.5rem,2.6vw,2.25rem)] leading-snug break-words">
           {transcript ? (
             transcript
           ) : (

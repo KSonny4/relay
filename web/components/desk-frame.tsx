@@ -3,13 +3,13 @@ import Link from "next/link";
 export function DeskFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-white text-black">
-      <header className="flex items-center justify-between border-b border-black/10 px-12 py-5">
+      <header className="flex items-center justify-between gap-4 border-b border-black/10 px-[clamp(1.25rem,4vw,3rem)] py-4 md:py-5">
         <Link href="/" className="text-sm tracking-[0.18em] uppercase">
           Relay
         </Link>
         <Link
           href="/record"
-          className="inline-flex h-12 items-center rounded-full bg-black px-8 text-sm font-medium text-white"
+          className="inline-flex h-12 shrink-0 items-center rounded-full bg-black px-6 text-sm font-medium text-white md:px-8"
         >
           Record
         </Link>

@@ -1,6 +1,6 @@
 # Relay pitch
 
-Desktop pages for a Relay pitch. One Record action starts a new take. While the microphone is open, the screen is the words and the score out of 10. History lists saved recordings. Opening one loads that session and shows the score and the next step.
+A Relay pitch app that uses the width of a computer and reflows on a phone. One Record action starts a new take. While the microphone is open, the screen is the words and the score out of 10. History lists saved recordings. Opening one loads that session and shows the score and the next step.
 
 ## Run
 
