@@ -559,6 +559,14 @@ test("nearest legend level and one-sentence recommendation", () => {
     firstSentence("Cut the intro. Then add a command."),
     "Cut the intro.",
   );
+  assert.equal(
+    firstSentence("Say what was built, e.g. the first command a developer runs."),
+    "Say what was built, e.g. the first command a developer runs.",
+  );
+  assert.equal(
+    firstSentence("Name who it is for, i.e. a developer who records pitches."),
+    "Name who it is for, i.e. a developer who records pitches.",
+  );
 });
 
 test("postgres list query does not select audio and non-local urls use ssl", async () => {

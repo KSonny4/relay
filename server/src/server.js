@@ -241,11 +241,25 @@ function storedSentences(value) {
   });
 }
 
+const ABBREVIATION_ENDING =
+  /(?:^|[\s(,])(?:e\.g|i\.e|etc|mr|mrs|ms|dr|prof|vs|inc|ltd|jr|sr|ph\.d|u\.s|u\.k|a\.m|p\.m)\.$/i;
+
+function endsSentence(text, index) {
+  const mark = text[index];
+  if (mark !== "." && mark !== "!" && mark !== "?") return false;
+  const next = text[index + 1];
+  if (mark === "." && next && /[A-Za-z0-9.]/.test(next)) return false;
+  if (mark === "." && ABBREVIATION_ENDING.test(text.slice(0, index + 1))) return false;
+  return true;
+}
+
 export function firstSentence(text) {
   const trimmed = String(text ?? "").trim().replace(/\s+/g, " ");
   if (!trimmed) throw httpError(502, "OpenAI recommendation was empty");
-  const match = trimmed.match(/^[\s\S]+?[.!?]/);
-  return (match ? match[0] : trimmed).trim();
+  for (let index = 0; index < trimmed.length; index += 1) {
+    if (endsSentence(trimmed, index)) return trimmed.slice(0, index + 1).trim();
+  }
+  return trimmed;
 }
 
 export function storeModeName(databaseUrl) {
