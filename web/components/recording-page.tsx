@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CriteriaScore } from "@/components/criteria-score";
 import { TimedScript } from "@/components/timed-script";
+import { showsNextFix } from "@/lib/next-fix";
 import type { Criteria } from "@/lib/score-display";
 import type { TranscriptScript } from "@/lib/transcript-script";
 
@@ -10,7 +11,6 @@ export function RecordingPage({
   script,
   waiting,
   error,
-  showFix,
   stop,
 }: {
   criteria: Criteria;
@@ -18,7 +18,6 @@ export function RecordingPage({
   script: TranscriptScript;
   waiting?: string | null;
   error?: string | null;
-  showFix?: boolean;
   stop?: { label: "Stop" | "Saving"; onClick: () => void };
 }) {
   return (
@@ -42,13 +41,13 @@ export function RecordingPage({
             <TimedScript script={script} />
           )}
         </div>
-        {showFix ? (
+        {showsNextFix(recommendation) ? (
           <div className="mt-12 flex items-start gap-4">
             <span className="inline-flex h-10 shrink-0 items-center rounded-full bg-white px-4 text-sm font-medium text-black">
               What to fix next pitch:
             </span>
             <p className="min-w-0 pt-2 text-[clamp(1.05rem,2vw,1.35rem)] leading-snug text-white">
-              {recommendation || "—"}
+              {recommendation}
             </p>
           </div>
         ) : null}

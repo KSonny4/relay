@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { RecordingPage } from "@/components/recording-page";
 import { getSession, type SessionDetail } from "@/lib/relay-api";
-import { criteriaTotal, emptyCriteria } from "@/lib/score-display";
+import { emptyCriteria } from "@/lib/score-display";
 import { emptyScript } from "@/lib/transcript-script";
 
 export function SessionPage({ id }: { id: string }) {
@@ -25,8 +25,6 @@ export function SessionPage({ id }: { id: string }) {
     };
   }, [id]);
 
-  const total = detail ? criteriaTotal(detail) : null;
-
   return (
     <RecordingPage
       criteria={detail ?? emptyCriteria}
@@ -34,7 +32,6 @@ export function SessionPage({ id }: { id: string }) {
       script={detail ?? emptyScript}
       waiting={detail ? null : "Opening."}
       error={error}
-      showFix={detail !== null && total !== 20}
     />
   );
 }
