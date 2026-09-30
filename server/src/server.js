@@ -158,6 +158,10 @@ export function createMemoryStore() {
         })
         .map(publicSession);
     },
+    async get(id) {
+      const row = rows.find((item) => item.id === id);
+      return row ? recording(row) : null;
+    },
   };
 }
 
@@ -202,21 +206,34 @@ export function createPostgresStore(pool) {
          FROM sessions
          ORDER BY created_at DESC`,
       );
-      return result.rows.map((row) =>
-        publicSession({
-          id: row.id,
-          attempt: row.attempt,
-          score: row.score,
-          level: row.level,
-          confidence: row.confidence,
-          recommendation: row.recommendation,
-          createdAt:
-            row.created_at instanceof Date
-              ? row.created_at.toISOString()
-              : new Date(row.created_at).toISOString(),
-        }),
-      );
+      return result.rows.map((row) => publicSession(sessionFromPostgres(row)));
     },
+    async get(id) {
+      const result = await pool.query(
+        `SELECT id, attempt, transcript, score, level, confidence, recommendation, created_at
+         FROM sessions
+         WHERE id = $1`,
+        [id],
+      );
+      const row = result.rows[0];
+      return row ? recording(sessionFromPostgres(row)) : null;
+    },
+  };
+}
+
+function sessionFromPostgres(row) {
+  return {
+    id: row.id,
+    attempt: row.attempt,
+    transcript: row.transcript,
+    score: row.score,
+    level: row.level,
+    confidence: row.confidence,
+    recommendation: row.recommendation,
+    createdAt:
+      row.created_at instanceof Date
+        ? row.created_at.toISOString()
+        : new Date(row.created_at).toISOString(),
   };
 }
 
@@ -224,6 +241,19 @@ function publicSession(row) {
   return {
     id: row.id,
     attempt: row.attempt,
+    score: row.score,
+    level: row.level,
+    confidence: row.confidence,
+    recommendation: row.recommendation,
+    createdAt: row.createdAt,
+  };
+}
+
+function recording(row) {
+  return {
+    id: row.id,
+    attempt: row.attempt,
+    transcript: row.transcript,
     score: row.score,
     level: row.level,
     confidence: row.confidence,
@@ -397,8 +427,8 @@ async function handleClassify(req, res, { fetchImpl, env }) {
 
 async function handleSessionsPost(req, res, { fetchImpl, store, env }) {
   const body = await parseJsonBody(req);
-  if (body.attempt !== 1 && body.attempt !== 2) {
-    throw httpError(400, "attempt must be 1 or 2");
+  if (!Number.isInteger(body.attempt) || body.attempt < 1) {
+    throw httpError(400, "attempt must be an integer greater than or equal to 1");
   }
   if (typeof body.transcript !== "string") {
     throw httpError(400, "transcript must be a string");
@@ -460,6 +490,16 @@ async function handle(req, res, options) {
   if (req.method === "GET" && url.pathname === "/api/sessions") {
     const sessions = await options.store.list();
     send(res, 200, { sessions });
+    return;
+  }
+  const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)$/);
+  if (req.method === "GET" && sessionMatch) {
+    const session = await options.store.get(decodeURIComponent(sessionMatch[1]));
+    if (!session) {
+      send(res, 404, { error: "Session not found" });
+      return;
+    }
+    send(res, 200, session);
     return;
   }
   if (req.method === "POST" && url.pathname === "/api/deepgram/token") {

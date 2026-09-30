@@ -231,17 +231,38 @@ test("missing Jev keys return 503 and do not invent a score", async () => {
   );
 });
 
-test("attempt 3 is rejected before any upstream call", async () => {
+test("attempt 3 is stored and attempt 0 is rejected", async () => {
   const fetchMock = mockFetch();
   await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base, store }) => {
-    const res = await request(base, "POST", "/api/sessions", {
-      attempt: 3,
+    const rejected = await request(base, "POST", "/api/sessions", {
+      attempt: 0,
       transcript: "nope",
     });
-    assert.equal(res.status, 400);
-    assert.equal(res.json.error, "attempt must be 1 or 2");
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.json.error, "attempt must be an integer greater than or equal to 1");
     assert.equal(fetchMock.calls.length, 0);
-    assert.equal(store.rows.length, 0);
+
+    const created = await request(base, "POST", "/api/sessions", {
+      attempt: 3,
+      transcript: "third take",
+      audioBase64: Buffer.from("SECRET-AUDIO-BYTES").toString("base64"),
+    });
+    assert.equal(created.status, 200);
+    assert.equal(created.json.attempt, 3);
+    assert.equal(store.rows.length, 1);
+
+    const one = await request(base, "GET", `/api/sessions/${created.json.id}`);
+    assert.equal(one.status, 200);
+    assert.equal(one.json.transcript, "third take");
+    assert.equal(one.json.attempt, 3);
+    assert.equal(one.json.recommendation, "Name the first command a developer should run.");
+    assert.equal(typeof one.json.createdAt, "string");
+    assert.equal("audio" in one.json, false);
+    assert.equal("audioBase64" in one.json, false);
+    assert.equal(one.text.includes("SECRET-AUDIO-BYTES"), false);
+
+    const missing = await request(base, "GET", "/api/sessions/missing");
+    assert.equal(missing.status, 404);
   });
 });
 
@@ -363,6 +384,10 @@ test("postgres list query does not select audio and non-local urls use ssl", asy
   assert.match(queries[1].text, /SELECT/);
   assert.doesNotMatch(queries[1].text, /\baudio\b/);
   assert.match(queries[1].text, /ORDER BY created_at DESC/);
+  await store.get("s1");
+  assert.match(queries[2].text, /SELECT/);
+  assert.match(queries[2].text, /transcript/);
+  assert.doesNotMatch(queries[2].text, /\baudio\b/);
 
   const remote = postgresOptions("postgres://user:s3cret@dpg-example.render.com/relay");
   assert.deepEqual(remote.ssl, { rejectUnauthorized: false });
