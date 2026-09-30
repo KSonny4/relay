@@ -16,14 +16,14 @@ import urllib.request
 RELAY_API = os.environ.get("RELAY_API", "https://relay-server-9hzn.onrender.com").rstrip("/")
 FORWARD = {"/api/transcribe", "/api/classify", "/api/sessions"}
 MAX_BODY = 40 * 1024 * 1024
-HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def load_page():
+    # On Render the page arrives base64-encoded in LIVE_HTML_B64 and this file is exec'd without __file__.
     encoded = os.environ.get("LIVE_HTML_B64")
     if encoded:
         return base64.b64decode(encoded)
-    with open(os.path.join(HERE, "live.html"), "rb") as f:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "live.html"), "rb") as f:
         return f.read()
 
 
