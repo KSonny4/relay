@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Petr Kubelka · Relay · Live</title>
+<style>
+  :root { --bg: #ffffff; --fg: #0a0a0a; --muted: #555555; --line: #e2e2e2; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(420px, 34vw, 660px);
+  }
+  iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--bg); }
+  #app { display: grid; grid-template-rows: auto minmax(0, 1fr); border-left: 2px solid var(--fg); min-height: 0; }
+  #app header {
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    padding: 12px 20px; border-bottom: 2px solid var(--line);
+    font-size: 15px; font-weight: 800; letter-spacing: .02em;
+  }
+  #app header a { color: var(--muted); font-weight: 600; text-decoration: none; }
+  #app header a:hover { color: var(--fg); text-decoration: underline; }
+  .dot { display: inline-flex; align-items: center; gap: 8px; }
+  .dot i { width: 10px; height: 10px; border-radius: 50%; background: var(--fg); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .dot i { animation: none; } }
+</style>
+</head>
+<body>
+<iframe id="deck" title="Relay pitch slides" src="deck.html"></iframe>
+<section id="app" aria-label="Relay live app">
+  <header>
+    <span class="dot"><i></i>Relay · Live app</span>
+    <a href="https://relay-web-s1d6.onrender.com" target="_blank" rel="noopener">relay-web-s1d6.onrender.com</a>
+  </header>
+  <iframe id="web" title="Relay live app" src="https://relay-web-s1d6.onrender.com/" allow="microphone; clipboard-write"></iframe>
+</section>
+<script>
+(function () {
+  var deck = document.getElementById('deck');
+  var web = document.getElementById('web');
+  var NAV = ['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'Home', 'End'];
+
+  // Open the slides on the scene named in this page's address, e.g. #3.
+  if (/^#\d+$/.test(location.hash)) deck.src = 'deck.html' + location.hash;
+
+  // Slide keys pressed while this page (not an iframe) has focus go to the slides.
+  document.addEventListener('keydown', function (e) {
+    if (NAV.indexOf(e.key) < 0 || !deck.contentDocument) return;
+    e.preventDefault();
+    deck.contentDocument.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, bubbles: true, cancelable: true }));
+  });
+
+  // Keys typed into the live app stay there; once the pointer is over the slides or this page, the presenter's keys drive the slides again.
+  function reclaim() {
+    if (document.activeElement === web) { web.blur(); deck.contentWindow.focus(); }
+  }
+  web.addEventListener('mouseleave', reclaim);
+  document.addEventListener('mousemove', reclaim);
+
+  function syncHash() {
+    try {
+      var h = deck.contentWindow.location.hash;
+      if (h && h !== location.hash) history.replaceState(null, '', h);
+    } catch (err) {}
+  }
+  deck.addEventListener('load', function () {
+    syncHash();
+    deck.contentWindow.addEventListener('keydown', function () { setTimeout(syncHash, 0); });
+    deck.contentWindow.addEventListener('click', function () { setTimeout(syncHash, 0); });
+    deck.contentDocument.addEventListener('mousemove', reclaim);
+    window.focus();
+  });
+})();
+</script>
+</body>
+</html>
