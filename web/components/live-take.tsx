@@ -290,7 +290,6 @@ export function LiveTake() {
     <RecordingPage
       criteria={criteria}
       recommendation={null}
-      showFix={false}
       script={script}
       error={error}
       waiting={phase === "recording" ? "Waiting for speech." : "The words show up here."}
