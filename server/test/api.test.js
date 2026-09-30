@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CORS_ORIGINS,
+  CRITIC_INSTRUCTIONS,
   SCORE_QUESTIONS,
   criterionInteger,
   createMemoryStore,
@@ -194,6 +195,7 @@ test("TYPESAFE_API_KEY posts three jev-latest score questions, then OpenAI, then
     assert.equal(fetchMock.calls[1].init.headers.authorization, "Bearer oa-test-key");
     const openaiBody = JSON.parse(fetchMock.calls[1].init.body);
     assert.equal(openaiBody.model, "gpt-4.1-mini");
+    assert.equal(openaiBody.messages[0].content, CRITIC_INSTRUCTIONS);
     assert.equal(openaiBody.messages[1].content, transcript);
 
     assert.equal(store.rows.length, 1);
@@ -474,6 +476,25 @@ test("Jev 3.1 becomes 4 and the total is execution times two plus the other mark
       confidence: 0.9,
     },
   );
+});
+
+test("small talk is the bottom criterion and the sentence is a critic", () => {
+  const bottom =
+    "This is not a pitch: it is a greeting or small talk, and it does not say what was built, who it helps, or what to do next.";
+  for (const question of SCORE_QUESTIONS) {
+    assert.equal(question.criteria[0], bottom);
+    assert.match(question.instructions, /Small talk scores at the bottom/);
+    assert.match(question.instructions, /real pitch/i);
+    assert.equal(question.criteria.length, 5);
+    assert.notEqual(question.criteria[4], bottom);
+  }
+  assert.match(CRITIC_INSTRUCTIONS, /critic who helps the speaker/);
+  assert.match(
+    CRITIC_INSTRUCTIONS,
+    /If the words never say what was built, who it is for, and what to try next, the sentence says that/,
+  );
+  assert.match(CRITIC_INSTRUCTIONS, /Do not praise a greeting/);
+  assert.match(CRITIC_INSTRUCTIONS, /Do not give generic marketing advice/);
 });
 
 test("nearest legend level and one-sentence recommendation", () => {

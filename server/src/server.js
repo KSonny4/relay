@@ -12,12 +12,16 @@ export function allowedOrigin(origin) {
   return typeof origin === "string" && CORS_ORIGINS.includes(origin) ? origin : null;
 }
 
+const NOT_A_PITCH =
+  "This is not a pitch: it is a greeting or small talk, and it does not say what was built, who it helps, or what to do next.";
+
 export const SCORE_QUESTIONS = [
   {
     id: "execution",
-    instructions: "How well does this pitch show what was actually built?",
+    instructions:
+      "How well does this pitch show what was actually built? Small talk scores at the bottom. A real pitch that shows what was built can still score high.",
     criteria: [
-      "A listener cannot tell what was built",
+      NOT_A_PITCH,
       "The pitch mentions a build, but not what it does",
       "A listener could tell what was built with effort",
       "A listener can tell what was built",
@@ -26,9 +30,10 @@ export const SCORE_QUESTIONS = [
   },
   {
     id: "usefulness",
-    instructions: "Is the problem real, and would someone use this?",
+    instructions:
+      "Is the problem real, and would someone use this? Small talk scores at the bottom. A real pitch about a problem someone would use can still score high.",
     criteria: [
-      "The problem does not sound real",
+      NOT_A_PITCH,
       "The problem is too vague to use",
       "Someone might use this if they already understood the problem",
       "The problem is real, and someone would use this",
@@ -37,9 +42,10 @@ export const SCORE_QUESTIONS = [
   },
   {
     id: "clarity",
-    instructions: "Can we understand what this is and why it matters?",
+    instructions:
+      "Can we understand what this is and why it matters? Small talk scores at the bottom. A real pitch that makes this clear can still score high.",
     criteria: [
-      "A listener cannot tell what this is",
+      NOT_A_PITCH,
       "What this is, and why it matters, is vague",
       "A listener could understand it with effort",
       "A listener understands what this is and why it matters",
@@ -47,6 +53,9 @@ export const SCORE_QUESTIONS = [
     ],
   },
 ];
+
+export const CRITIC_INSTRUCTIONS =
+  "You are a critic who helps the speaker. Reply with one sentence. If the words never say what was built, who it is for, and what to try next, the sentence says that. Do not praise a greeting. Do not give generic marketing advice. No other prose.";
 
 const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/systemone";
@@ -465,8 +474,7 @@ async function scoreTranscript(fetchImpl, env, transcript) {
       messages: [
         {
           role: "system",
-          content:
-            "Reply with one sentence: the next improvement for this developer-facing pitch. No other prose.",
+          content: CRITIC_INSTRUCTIONS,
         },
         { role: "user", content: transcript },
       ],
