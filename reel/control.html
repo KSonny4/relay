@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Relay · Phone control</title>
+<style>
+  :root { --bg: #ffffff; --fg: #0a0a0a; --muted: #555555; --dim: #737373; --soft: #f3f3f3; --line: #e2e2e2; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
+    min-height: 100vh; min-height: 100dvh;
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+    touch-action: manipulation;
+  }
+  header {
+    position: sticky; top: 0; z-index: 2; background: var(--bg);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: calc(12px + env(safe-area-inset-top)) 20px 12px; border-bottom: 2px solid var(--line);
+    font-size: 15px; font-weight: 800;
+  }
+  #count { font-variant-numeric: tabular-nums; font-size: 17px; }
+  #link { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 700; font-size: 13px; }
+  #link i { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--fg); }
+  #link.on i { background: var(--fg); }
+  #progress { height: 4px; background: var(--fg); width: 0; transition: width .3s ease; }
+
+  main { padding: 22px 20px 28px; }
+  #say p { font-size: 25px; font-weight: 700; line-height: 1.38; letter-spacing: -0.01em; }
+  #say p + p { margin-top: 12px; }
+  .em { font-weight: 900; }
+
+  nav {
+    position: sticky; bottom: 0; background: var(--bg); border-top: 2px solid var(--line);
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  nav button {
+    height: 76px; border-radius: 18px; border: 2px solid var(--fg);
+    font: inherit; font-size: 22px; font-weight: 900; cursor: pointer;
+    background: var(--bg); color: var(--fg);
+  }
+  #forward { background: var(--fg); color: var(--bg); }
+  nav button:disabled { border-color: var(--line); background: var(--bg); color: var(--line); cursor: default; }
+  nav button:active:not(:disabled) { transform: scale(.98); }
+</style>
+</head>
+<body>
+<header>
+  <span id="count">1</span>
+  <span id="link"><i></i><span id="link-text">Connecting to the deck</span></span>
+</header>
+<div id="progress" aria-hidden="true"></div>
+<main>
+  <div id="say" aria-live="polite" aria-label="Voiceover"></div>
+</main>
+<nav aria-label="Slides">
+  <button type="button" id="back">Back</button>
+  <button type="button" id="forward">Forward</button>
+</nav>
+<script src="mode.js"></script>
+<script src="slides.js"></script>
+<script src="sync.js"></script>
+<script>
+(function () {
+  var SLIDES = window.relayDeck().slides;
+  var countEl = document.getElementById('count');
+  var progress = document.getElementById('progress');
+  var sayEl = document.getElementById('say');
+  var back = document.getElementById('back');
+  var forward = document.getElementById('forward');
+  var link = document.getElementById('link');
+  var linkText = document.getElementById('link-text');
+  var slide = 0;
+
+  function html(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*([^*]+)\*/g, '<span class="em">$1</span>');
+  }
+  function paras(lines) { return lines.map(function (l) { return '<p>' + html(l) + '</p>'; }).join(''); }
+
+  function show(n) {
+    n = Math.max(1, Math.min(SLIDES.length, n));
+    if (n === slide) return;
+    slide = n;
+    var s = SLIDES[n - 1];
+    countEl.textContent = n + ' / ' + SLIDES.length;
+    progress.style.width = (n / SLIDES.length * 100) + '%';
+    sayEl.innerHTML = paras(s.say);
+    back.disabled = n === 1;
+    forward.disabled = n === SLIDES.length;
+    window.scrollTo(0, 0);
+  }
+
+  var sync = window.RelaySync(show, function (on) {
+    link.classList.toggle('on', on);
+    linkText.textContent = on ? 'Moves the deck at ' + location.host : 'Reconnecting to the deck';
+  });
+  if (!sync.enabled) linkText.textContent = 'Open this page from the deck’s site to move the deck';
+
+  function go(n) {
+    n = Math.max(1, Math.min(SLIDES.length, n));
+    if (n === slide) return;
+    show(n);
+    sync.publish(n);
+  }
+
+  var wake = null;
+  function keepAwake() {
+    if (wake || !navigator.wakeLock) return;
+    navigator.wakeLock.request('screen').then(function (w) {
+      wake = w;
+      w.addEventListener('release', function () { wake = null; });
+    }, function () {});
+  }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') wake = null; });
+
+  back.addEventListener('click', function () { keepAwake(); go(slide - 1); });
+  forward.addEventListener('click', function () { keepAwake(); go(slide + 1); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); go(slide + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(slide - 1); }
+  });
+
+  show(1);
+})();
+</script>
+</body>
+</html>
