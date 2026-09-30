@@ -154,10 +154,8 @@ function parseSession(body: unknown): SessionRecord {
 
 function parseSessionDetail(body: unknown): SessionDetail {
   const session = parseSession(body);
-  if (!isRecord(body) || typeof body.transcript !== "string") {
-    throw new Error("That recording was missing a transcript.");
-  }
-  return { ...session, transcript: body.transcript };
+  const transcript = isRecord(body) && typeof body.transcript === "string" ? body.transcript : "";
+  return { ...session, transcript };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -32,8 +32,16 @@ export function SessionPage({ id }: { id: string }) {
           <CriteriaScore criteria={detail ?? emptyCriteria} />
         </div>
         <div className="px-[clamp(1.25rem,4vw,3rem)] py-10 md:py-16">
-          <p className="text-xs tracking-[0.16em] text-neutral-500 uppercase">Next</p>
-          <div className="mt-6 text-[clamp(1.5rem,2.4vw,2.25rem)] leading-snug break-words md:mt-8">
+          <p className="text-xs tracking-[0.16em] text-neutral-500 uppercase">Transcript</p>
+          <div className="mt-6 text-[clamp(1.5rem,2.4vw,2.25rem)] leading-snug break-words">
+            {detail ? (
+              detail.transcript || "—"
+            ) : (
+              <p className="text-neutral-500">Opening.</p>
+            )}
+          </div>
+          <p className="mt-10 text-xs tracking-[0.16em] text-neutral-500 uppercase">Next</p>
+          <div className="mt-6 text-[clamp(1.5rem,2.4vw,2.25rem)] leading-snug break-words">
             {error ? (
               <p role="alert" className="text-base">
                 {error}
@@ -42,9 +50,7 @@ export function SessionPage({ id }: { id: string }) {
               detail.recommendation
             ) : detail ? (
               "—"
-            ) : (
-              <p className="text-neutral-500">Opening.</p>
-            )}
+            ) : null}
           </div>
         </div>
       </main>
