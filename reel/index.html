@@ -50,7 +50,7 @@
   .line.past { font-size: calc(var(--u) * 3.8); font-weight: 700; letter-spacing: -0.01em; color: var(--dim); animation: none; }
   .line.long { font-size: calc(var(--u) * 6); }
   .line.long.past { font-size: calc(var(--u) * 3.8); }
-  .line .accent { color: var(--accent); }
+  .line .accent { color: var(--accent); font-weight: 900; }
   .line.past .accent { color: inherit; }
   @keyframes rise { from { opacity: 0; transform: translateY(calc(var(--u) * 2.5)); } }
 
@@ -105,6 +105,8 @@
     display: flex; flex-direction: column; justify-content: flex-end; gap: calc(var(--u) * 1.1);
     overflow: hidden; min-height: 0;
     font-size: calc(var(--u) * 2.6); font-weight: 600; line-height: 1.3; color: var(--muted);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 4em);
+    mask-image: linear-gradient(to bottom, transparent, #000 4em);
   }
   .transcript p:last-child { color: var(--fg); }
   .caret { display: inline-block; width: .45em; height: 1em; background: var(--accent); vertical-align: -0.12em; margin-left: .12em; }
@@ -124,6 +126,7 @@
   }
   body.paused #pause { display: block; }
 
+  body.seeked .line, body.seeked .fix { animation: none; }
   @media (prefers-reduced-motion: reduce) {
     .line { animation: none; }
     .rec i { animation: none; }
@@ -165,7 +168,7 @@
 
   // The spoken script, verbatim from the "60 seconds" section of pitch.md.
   // `at` is the section timestamp in seconds; sentences inside a section are
-  // spaced by word count. *Asterisks* mark words shown in the accent colour.
+  // spaced by word count. *Asterisks* mark emphasised words.
   // A leading [outcome] tag lights that judging outcome when the sentence is spoken.
   var PITCH = [
     { at: 0, lines: [
@@ -294,7 +297,11 @@
   var t = 0;
   var last = null;
   var m = /(?:^|[#&?])t=(\d+(?:\.\d+)?)/.exec(location.hash + location.search);
-  if (m) t = Math.min(DURATION, parseFloat(m[1]));
+  if (m) {
+    t = Math.min(DURATION, parseFloat(m[1]));
+    // A seek (rehearsal) shows finished frames; removing the class later would restart the animations.
+    body.classList.add('seeked');
+  }
 
   function frame(now) {
     if (last !== null && !paused) t = Math.min(DURATION, t + Math.min(0.25, (now - last) / 1000));
