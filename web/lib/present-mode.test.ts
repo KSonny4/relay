@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isPresentMode, shouldStartPresentedTake } from "./present-mode.ts";
+import { isPresentMode, presentedTakeAction } from "./present-mode.ts";
 
 describe("present mode", () => {
   it("opens the microphone on load only when present=1 is absent", () => {
@@ -9,39 +9,67 @@ describe("present mode", () => {
     assert.equal(isPresentMode("?present=1"), true);
   });
 
-  it("starts one take from the reel message and ignores a second while it is running", () => {
+  it("starts a new take from the reel every time, even if one is already recording", () => {
     const message = { type: "relay:start-recording" };
     assert.equal(
-      shouldStartPresentedTake({
+      presentedTakeAction({
         origin: "https://relay-reel-live.onrender.com",
         data: message,
-        takeRunning: false,
+        recording: false,
       }),
-      true,
+      "start",
     );
     assert.equal(
-      shouldStartPresentedTake({
+      presentedTakeAction({
         origin: "https://relay-reel-live.onrender.com",
         data: message,
-        takeRunning: true,
+        recording: true,
       }),
-      false,
+      "start",
     );
     assert.equal(
-      shouldStartPresentedTake({
+      presentedTakeAction({
         origin: "https://example.com",
         data: message,
-        takeRunning: false,
+        recording: false,
       }),
-      false,
+      null,
     );
     assert.equal(
-      shouldStartPresentedTake({
+      presentedTakeAction({
         origin: "https://relay-reel-live.onrender.com",
         data: { type: "other" },
-        takeRunning: false,
+        recording: true,
       }),
-      false,
+      null,
+    );
+  });
+
+  it("stops only while a take is recording", () => {
+    const message = { type: "relay:stop-recording" };
+    assert.equal(
+      presentedTakeAction({
+        origin: "https://relay-reel-live.onrender.com",
+        data: message,
+        recording: true,
+      }),
+      "stop",
+    );
+    assert.equal(
+      presentedTakeAction({
+        origin: "https://relay-reel-live.onrender.com",
+        data: message,
+        recording: false,
+      }),
+      null,
+    );
+    assert.equal(
+      presentedTakeAction({
+        origin: "https://example.com",
+        data: message,
+        recording: true,
+      }),
+      null,
     );
   });
 });

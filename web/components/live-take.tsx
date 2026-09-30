@@ -19,7 +19,7 @@ import {
   takeEnds,
   type ClassifyPlan,
 } from "@/lib/take-rules";
-import { isPresentMode, shouldStartPresentedTake } from "@/lib/present-mode";
+import { isPresentMode, presentedTakeAction } from "@/lib/present-mode";
 import { emptyScript, type TranscriptScript } from "@/lib/transcript-script";
 
 type Phase = "recording" | "classifying";
@@ -40,7 +40,6 @@ export function LiveTake() {
   const finishingRef = useRef(false);
   const classifyPlanRef = useRef<ClassifyPlan>(createClassifyPlan());
   const classifyGenRef = useRef(0);
-  const takeIdRef = useRef(0);
   const startedAtRef = useRef(0);
   const lastWordsAtRef = useRef(0);
   const recordingRef = useRef(false);
@@ -51,8 +50,12 @@ export function LiveTake() {
     chunksRef.current = [];
     classifyPlanRef.current = createClassifyPlan();
     finishingRef.current = false;
-    const takeId = ++takeIdRef.current;
+    let takeGeneration = 0;
     let transcribeChain: Promise<void> = Promise.resolve();
+
+    function isLive(gen: number): boolean {
+      return !aborted.current && gen === takeGeneration;
+    }
 
     function clearTimer() {
       if (timerRef.current !== null) {
@@ -71,25 +74,21 @@ export function LiveTake() {
       streamRef.current = null;
     }
 
-    function stillThisTake(): boolean {
-      return !aborted.current && takeId === takeIdRef.current;
-    }
-
-    function publishLiveScore(transcript: string) {
-      const generation = ++classifyGenRef.current;
+    function publishLiveScore(gen: number, transcript: string) {
+      const scoreGeneration = ++classifyGenRef.current;
       void classifyLive(transcript)
         .then((live) => {
-          if (!stillThisTake() || generation !== classifyGenRef.current) return;
+          if (!isLive(gen) || scoreGeneration !== classifyGenRef.current) return;
           setCriteria(live);
         })
         .catch((caught: unknown) => {
-          if (!stillThisTake() || generation !== classifyGenRef.current) return;
+          if (!isLive(gen) || scoreGeneration !== classifyGenRef.current) return;
           setError(caught instanceof Error ? caught.message : "Live score update failed.");
         });
     }
 
-    function rememberScript(next: TranscriptScript) {
-      if (!stillThisTake()) return;
+    function rememberScript(gen: number, next: TranscriptScript) {
+      if (!isLive(gen)) return;
       const previous = finalsRef.current;
       finalsRef.current = next.transcript;
       setScript(next);
@@ -101,7 +100,7 @@ export function LiveTake() {
         isFinal: true,
       });
       classifyPlanRef.current = step.plan;
-      if (step.send) publishLiveScore(step.send);
+      if (step.send) publishLiveScore(gen, step.send);
     }
 
     function currentAudio(): { blob: Blob; mimeType: string } | null {
@@ -113,26 +112,26 @@ export function LiveTake() {
       return { blob, mimeType };
     }
 
-    async function transcribeCurrent() {
+    async function transcribeCurrent(gen: number) {
       const audio = currentAudio();
-      if (!audio || !stillThisTake()) return;
+      if (!audio || !isLive(gen)) return;
       const next = await transcribeAudio(await blobToBase64(audio.blob), audio.mimeType);
-      if (!stillThisTake()) return;
-      rememberScript(next);
+      if (!isLive(gen)) return;
+      rememberScript(gen, next);
     }
 
-    function queueTranscribe() {
+    function queueTranscribe(gen: number) {
       transcribeChain = transcribeChain
-        .then(() => transcribeCurrent())
+        .then(() => transcribeCurrent(gen))
         .catch((caught: unknown) => {
-          if (!stillThisTake()) return;
+          if (!isLive(gen)) return;
           setError(caught instanceof Error ? caught.message : "Transcription failed.");
         });
       return transcribeChain;
     }
 
-    async function finish() {
-      if (finishingRef.current || aborted.current) return;
+    async function finish(gen: number) {
+      if (gen !== takeGeneration || finishingRef.current || aborted.current) return;
       finishingRef.current = true;
       recordingRef.current = false;
       clearTimer();
@@ -140,17 +139,18 @@ export function LiveTake() {
 
       const recorder = recorderRef.current;
       const stream = streamRef.current;
+      const chunks = chunksRef.current;
       recorderRef.current = null;
       streamRef.current = null;
 
       let audioBlob: Blob | null = null;
       try {
-        audioBlob = await stopRecorder(recorder, chunksRef.current);
+        audioBlob = await stopRecorder(recorder, chunks);
       } catch {
         audioBlob = null;
       }
       stream?.getTracks().forEach((track) => track.stop());
-      takeIdRef.current += 1;
+      if (gen !== takeGeneration) return;
       classifyPlanRef.current = createClassifyPlan();
 
       let transcript = finalsRef.current;
@@ -160,16 +160,22 @@ export function LiveTake() {
             await blobToBase64(audioBlob),
             audioBlob.type || "audio/webm",
           );
+          if (gen !== takeGeneration) return;
           transcript = next.transcript;
           finalsRef.current = next.transcript;
-          setScript(next);
+          if (!aborted.current) setScript(next);
         } catch (caught) {
-          setError(caught instanceof Error ? caught.message : "Transcription failed.");
+          if (gen !== takeGeneration) return;
+          if (!aborted.current) {
+            setError(caught instanceof Error ? caught.message : "Transcription failed.");
+          }
         }
       }
 
+      if (gen !== takeGeneration) return;
       try {
         const saved = await listSessions();
+        if (gen !== takeGeneration) return;
         const classification = await classifySession({
           attempt: nextAttempt(saved.map((session) => session.attempt)),
           transcript,
@@ -180,23 +186,24 @@ export function LiveTake() {
               }
             : {}),
         });
+        if (gen !== takeGeneration) return;
         router.replace(`/sessions/${classification.id}`);
       } catch (caught) {
+        if (gen !== takeGeneration || aborted.current) return;
         setError(caught instanceof Error ? caught.message : "Classification failed.");
         setPhase("recording");
         finishingRef.current = false;
-        takeIdRef.current = takeId;
       }
     }
 
     finishRef.current = () => {
-      void finish();
+      void finish(takeGeneration);
     };
 
-    function watch() {
+    function watch(gen: number) {
       clearTimer();
       timerRef.current = window.setInterval(() => {
-        if (!recordingRef.current || aborted.current) return;
+        if (!isLive(gen) || !recordingRef.current) return;
         const now = performance.now();
         if (
           takeEnds({
@@ -205,23 +212,23 @@ export function LiveTake() {
             userStopped: false,
           })
         ) {
-          void finish();
+          void finish(gen);
           return;
         }
         const step = onClassifyTick(classifyPlanRef.current, now);
         classifyPlanRef.current = step.plan;
-        if (step.send) publishLiveScore(step.send);
+        if (step.send) publishLiveScore(gen, step.send);
       }, 100);
     }
 
-    async function begin() {
+    async function begin(gen: number) {
       let stream: MediaStream | null = null;
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
           throw new Error("No microphone. Paste a transcript instead.");
         }
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        if (!stillThisTake()) {
+        if (!isLive(gen)) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
@@ -229,9 +236,9 @@ export function LiveTake() {
         const mimeType = preferredMimeType();
         const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
         recorder.addEventListener("dataavailable", (event) => {
-          if (event.data.size === 0) return;
+          if (!isLive(gen) || event.data.size === 0) return;
           chunksRef.current.push(event.data);
-          if (recordingRef.current && stillThisTake()) queueTranscribe();
+          if (recordingRef.current) queueTranscribe(gen);
         });
         recorderRef.current = recorder;
         const now = performance.now();
@@ -239,37 +246,48 @@ export function LiveTake() {
         lastWordsAtRef.current = now;
         recordingRef.current = true;
         recorder.start(2000);
-        watch();
+        watch(gen);
       } catch (caught) {
         stream?.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-        if (!stillThisTake()) return;
+        if (streamRef.current === stream) streamRef.current = null;
+        if (!isLive(gen)) return;
         setError(caught instanceof Error ? caught.message : "Could not start recording.");
       }
     }
 
-    let starting = false;
-
     function startTake() {
-      if (starting || recordingRef.current || finishingRef.current) return;
-      starting = true;
-      void begin().finally(() => {
-        starting = false;
-      });
+      const gen = ++takeGeneration;
+      finishingRef.current = false;
+      releaseMedia();
+      finalsRef.current = "";
+      chunksRef.current = [];
+      classifyPlanRef.current = createClassifyPlan();
+      classifyGenRef.current += 1;
+      transcribeChain = Promise.resolve();
+      void begin(gen);
+    }
+
+    function resetVisibleTake() {
+      setPhase("recording");
+      setScript(emptyScript);
+      setCriteria(emptyCriteria);
+      setError(null);
     }
 
     const present = isPresentMode(window.location.search);
     function onReelMessage(event: MessageEvent) {
-      if (
-        !shouldStartPresentedTake({
-          origin: event.origin,
-          data: event.data,
-          takeRunning: starting || recordingRef.current || finishingRef.current,
-        })
-      ) {
+      const action = presentedTakeAction({
+        origin: event.origin,
+        data: event.data,
+        recording: recordingRef.current,
+      });
+      if (action === "start") {
+        const restarting = takeGeneration !== 0;
+        startTake();
+        if (restarting) resetVisibleTake();
         return;
       }
-      startTake();
+      if (action === "stop") void finish(takeGeneration);
     }
 
     if (present) {
