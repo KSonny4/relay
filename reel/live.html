@@ -36,6 +36,7 @@
   </header>
   <iframe id="web" title="Relay live app" src="https://relay-web-s1d6.onrender.com/?present=1" allow="microphone; clipboard-write"></iframe>
 </section>
+<script src="sync.js"></script>
 <script>
 (function () {
   var deck = document.getElementById('deck');
@@ -59,29 +60,42 @@
   web.addEventListener('mouseleave', reclaim);
   document.addEventListener('mousemove', reclaim);
 
-  // The live app starts recording once, when the presenter leaves the intro slide (1) for slide 2,
-  // from the keyboard, a click or the phone. Slides taken over from the server on load do not count.
+  // Arriving on slide 2, the first pitch slide, posts start-recording every time, including a return.
+  // A deck that opens already on that slide does not: the jump from the server is not the presenter's move.
+  // Stop recording is pressed on the phone. Each press reaches this page and is posted to the app.
   var WEB_ORIGIN = 'https://relay-web-s1d6.onrender.com';
-  var slide = 0, startSent = false, webLoaded = false, startWaiting = false;
-  function startRecording() {
-    startSent = true;
-    if (!webLoaded) { startWaiting = true; return; }
-    web.contentWindow.postMessage({ type: 'relay:start-recording' }, WEB_ORIGIN);
+  var slide = 0, webLoaded = false, startWaiting = false, stopPending = 0;
+  function postToApp(type) {
+    web.contentWindow.postMessage({ type: type }, WEB_ORIGIN);
   }
-  // A cold app may still be loading when the presenter moves on; the message then goes as soon as it has loaded.
+  function startRecording() {
+    if (!webLoaded) { startWaiting = true; return; }
+    startWaiting = false;
+    postToApp('relay:start-recording');
+  }
+  function stopRecording() {
+    if (!webLoaded) { stopPending += 1; return; }
+    var n = Math.max(1, stopPending);
+    stopPending = 0;
+    while (n--) postToApp('relay:stop-recording');
+  }
+  // A cold app may still be loading when the presenter moves or presses stop. The message goes once it has loaded.
   web.addEventListener('load', function () {
     webLoaded = true;
-    if (startWaiting) { startWaiting = false; web.contentWindow.postMessage({ type: 'relay:start-recording' }, WEB_ORIGIN); }
+    if (startWaiting) startRecording();
+    if (stopPending) stopRecording();
   });
 
   // The slides report every change, including ones made from the phone, so this address shows the slide too.
   window.addEventListener('message', function (e) {
     if (e.origin !== location.origin || !e.data || !e.data.relaySlide) return;
     var next = e.data.relaySlide;
-    if (!startSent && e.data.byPresenter && slide === 1 && next === 2) startRecording();
+    if (e.data.byPresenter && next === 2 && slide !== 2) startRecording();
+    else if (next !== 2) startWaiting = false;
     slide = next;
     history.replaceState(null, '', '#' + next);
   });
+  window.RelaySync(function () {}, function () {}, stopRecording);
   deck.addEventListener('load', function () {
     deck.contentDocument.addEventListener('mousemove', reclaim);
     window.focus();

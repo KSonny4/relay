@@ -7,7 +7,7 @@ Petr Kubelka's pitch deck for Relay. The room sees short slides: a few words eac
 | Offline | https://relay-reel.onrender.com | https://relay-reel.onrender.com/control |
 | Online, with the live app beside the slides | https://relay-reel-live.onrender.com | https://relay-reel-live.onrender.com/control |
 
-Slides 1 to 5 are the one-minute talk: one rubric, judged live, the same three questions every time, one line to fix, and the take kept. Petr stops after slide 5 when he has one minute. Slides 6 to 8 continue it to two minutes: how a take works, the technologies, and what's next (any spoken words, against criteria you set; a corporate meeting is the example). The online deck adds one slide in front ("Recording starts on the next slide."), so it has nine.
+Slides 1 to 5 are the one-minute talk, in judge order: what was built and that it works, then the problem and who would use it, then what this is and why it matters, then the close. Petr stops after slide 5 when he has one minute. The phone shows red text, "Stop here.", on that slide only, so a two-minute talk that continues past it skips the reminder. Slides 6 to 8 continue: how a take works, the technologies, and what's next (any spoken words, against criteria you set; a corporate meeting is the example). The online deck adds one slide in front ("Recording starts on the next slide."), so it has nine.
 
 ## Files
 
@@ -34,19 +34,19 @@ Opening `reel/index.html` straight from disk also works. The slides move on thei
 Everything is manual; nothing advances by itself.
 
 - On the deck: Right arrow, Down, Page Down, Space, Enter or a click go forward. Left arrow, Up, Page Up, Backspace or a click on the left quarter go back. Home and End jump to the first and last slide. The ‹ › buttons work too.
-- On the phone: Back and Forward. The page keeps the screen awake while Petr presents, where the browser allows it.
-- The deck and the phone stay on the same slide. A move on either one reaches the other through that site's own server (`/api/slide`, pushed as server-sent events, with a poll as backup). The offline and online sites each keep their own slide, so each phone moves only its own deck. The scoring API is not involved.
+- On the phone: Back and Forward. Stop recording is on every slide, small, and big on the one-minute end and on the last slide. The one-minute end also says "Stop here." in red. None of that is on the projected slides. The page keeps the screen awake while Petr presents, where the browser allows it.
+- The deck and the phone stay on the same slide. A move on either one reaches the other through that site's own server (`/api/slide`, pushed as server-sent events, with a poll as backup). Stop recording posts to `/api/stop-recording` on that same server and does not change the slide. The offline and online sites each keep their own slide, so each phone moves only its own deck. The scoring API is not involved.
 - The address ends in `#1` to `#8` (online: `#1` to `#9`). When the deck opens, it jumps to the slide the server holds, so a reloaded deck rejoins the phone.
 
 ## Online presentation
 
-The live app runs beside the slides with microphone access. When the presenter leaves the first slide for the second, by keyboard, click or phone, the page posts `{ type: "relay:start-recording" }` once to the app frame (target origin `https://relay-web-s1d6.onrender.com`). It is not posted again on later slides or on a second pass. It is also not posted when a deck opening mid-talk jumps to the server's slide. While the app has focus, keys go to the app. Moving the pointer back over the slides returns the keys to the slides.
+The live app runs beside the slides with microphone access. Arriving on slide 2, the first pitch slide after the intro, posts `{ type: "relay:start-recording" }` to the app frame (target origin `https://relay-web-s1d6.onrender.com`). It posts again every time he leaves and comes back, from the keyboard, a click or the phone. A deck that opens already on that slide does not post it. Stop recording on the phone posts `{ type: "relay:stop-recording" }` to the same frame, once per press. While the app has focus, keys go to the app. Moving the pointer back over the slides returns the keys to the slides.
 
 ## What is on screen
 
 Wide 16:9 frame, black type on white. On other screen shapes the frame letterboxes instead of reflowing.
 
-The phone page is the voiceover, in `slides.js`. Slides 1 to 5 say what is live today: one rubric, scored while he talks, execution times two plus usefulness plus clarity out of 20, one line to fix, the take kept, and the same questions every time. Slides 6 to 8 say how a take works, which technologies do that job, and what is next: criteria you set, any spoken words, a corporate meeting as the example, this hackathon as the first use. The slides show only the main point of each.
+The phone page is the voiceover, in `slides.js`. Slides 1 to 5 answer the three judge questions in order. Execution: one rubric, live, out of 20, one line to fix, the take kept, the same questions every time. Usefulness: you finished your pitch, you got a low score, you don’t know why, and a team would use this. Clarity: a score and one line, and you know the number before you stand up. Slides 6 to 8 say how a take works, which technologies do that job, and what is next: criteria you set, any spoken words, a corporate meeting as the example, this hackathon as the first use. The slides show only the main point of each, in words that stand on their own.
 
 From slide 2 on (slide 3 online), the score card shows the three judging criteria, each 1 to 5:
 
