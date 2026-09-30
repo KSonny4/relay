@@ -12,7 +12,9 @@ import {
   databaseUrlFrom,
   firstSentence,
   jevTarget,
+  applyCritic,
   mapMarks,
+  parseCritic,
   listenPort,
   nearestLevel,
   postgresOptions,
@@ -542,24 +544,80 @@ test("small talk is the bottom criterion and the sentence is a critic", () => {
     assert.equal(question.criteria.length, 5);
     assert.notEqual(question.criteria[4], bottom);
   }
+  assert.match(EXECUTION.instructions, /If the words do not say what was built, the score is 1 or 2, not 4 or 5/);
+  assert.match(USEFULNESS.instructions, /If the words do not say who it is for, the score is 1 or 2, not 4 or 5/);
+  assert.match(CLARITY.instructions, /If the words do not say why it matters, the score is 1 or 2, not 4 or 5/);
+  assert.match(EXECUTION.instructions, /A 5 means a listener could act and you would not write a fix/);
+  assert.match(EXECUTION.criteria[1], /do not say what was built/);
+  assert.match(USEFULNESS.criteria[1], /do not say who it is for/);
+  assert.match(CLARITY.criteria[1], /do not say why it matters/);
+  assert.match(EXECUTION.criteria[4], /a listener could act, and there is nothing to fix/);
   assert.match(CRITIC_INSTRUCTIONS, /critic who helps the speaker/);
-  assert.match(
-    CRITIC_INSTRUCTIONS,
-    /If the words never say what was built, who it is for, and what to try next, the sentence says that/,
-  );
+  assert.match(CRITIC_INSTRUCTIONS, /Do not give a 5 on a criterion you would still criticize/);
   assert.match(CRITIC_INSTRUCTIONS, /Do not praise a greeting/);
   assert.match(CRITIC_INSTRUCTIONS, /Do not give generic marketing advice/);
 });
 
-test("a perfect 5, 5, 5 stores an empty line and does not ask for a change", async () => {
+test("a line that still asks what it is and who it is for cannot leave those marks at 5", async () => {
   const fetchMock = mockFetch({
     jev: jevResponse({ execution: 4, usefulness: 4, clarity: 4 }),
-    openai: openaiResponse("Clarify what Relay is and who it is for."),
+    openai: openaiResponse(
+      JSON.stringify({
+        recommendation: "Say what Relay is and who it is for.",
+        omit: ["execution", "usefulness"],
+        fix: [],
+      }),
+    ),
   });
   await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base, store }) => {
     const created = await request(base, "POST", "/api/sessions", {
       attempt: 1,
-      transcript: "Relay records a pitch, scores what was built, who it helps, and what to try next.",
+      transcript: "Hi, how are you?",
+    });
+    assert.equal(created.status, 200);
+    assert.equal(created.json.execution, 2);
+    assert.equal(created.json.usefulness, 2);
+    assert.equal(created.json.clarity, 5);
+    assert.equal(created.json.score, 11);
+    assert.equal(created.json.score < 20, true);
+    assert.equal(created.json.recommendation, "Say what Relay is and who it is for.");
+    assert.equal(created.json.level, EXECUTION.criteria[1]);
+    assert.equal(fetchMock.calls.length, 2);
+    assert.equal(fetchMock.calls[1].url, "https://api.openai.com/v1/chat/completions");
+    assert.equal(store.rows[0].score, 11);
+  });
+  assert.deepEqual(
+    applyCritic(
+      { execution: 5, usefulness: 5, clarity: 5, level: "high", confidence: 0.9 },
+      parseCritic(
+        JSON.stringify({
+          recommendation: "Say what Relay is and who it is for.",
+          omit: ["execution", "usefulness"],
+          fix: ["clarity"],
+        }),
+      ),
+    ),
+    {
+      execution: 2,
+      usefulness: 2,
+      clarity: 4,
+      level: EXECUTION.criteria[1],
+      confidence: 0.9,
+      score: 10,
+      recommendation: "Say what Relay is and who it is for.",
+    },
+  );
+});
+
+test("the line is empty only when all three marks are truly 5", async () => {
+  const fetchMock = mockFetch({
+    jev: jevResponse({ execution: 4, usefulness: 4, clarity: 4 }),
+    openai: openaiResponse(JSON.stringify({ recommendation: "", omit: [], fix: [] })),
+  });
+  await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base }) => {
+    const created = await request(base, "POST", "/api/sessions", {
+      attempt: 1,
+      transcript: "Relay records a pitch, says who it is for, and why the next command matters.",
     });
     assert.equal(created.status, 200);
     assert.equal(created.json.execution, 5);
@@ -567,14 +625,19 @@ test("a perfect 5, 5, 5 stores an empty line and does not ask for a change", asy
     assert.equal(created.json.clarity, 5);
     assert.equal(created.json.score, 20);
     assert.equal(created.json.recommendation, "");
-    assert.equal(fetchMock.calls.length, 1);
-    assert.equal(fetchMock.calls[0].url.endsWith("/v1/systemone"), true);
-    assert.equal(store.rows[0].recommendation, "");
-    const one = await request(base, "GET", `/api/sessions/${created.json.id}`);
-    assert.equal(one.json.recommendation, "");
+    assert.equal(fetchMock.calls.length, 2);
   });
   assert.equal(perfectMarks({ execution: 5, usefulness: 5, clarity: 5 }), true);
   assert.equal(perfectMarks({ execution: 5, usefulness: 5, clarity: 4 }), false);
+  const plain = applyCritic(
+    { execution: 5, usefulness: 5, clarity: 5, level: "high", confidence: 0.8 },
+    parseCritic("Say what Relay is and who it is for."),
+  );
+  assert.equal(plain.execution, 2);
+  assert.equal(plain.usefulness, 2);
+  assert.equal(plain.clarity, 5);
+  assert.equal(plain.score, 11);
+  assert.equal(plain.recommendation, "Say what Relay is and who it is for.");
 });
 
 test("a mark below 5 still returns the critic sentence and stays under 20", async () => {
