@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { CriteriaScore } from "@/components/criteria-score";
 import { TimedScript } from "@/components/timed-script";
+import {
+  LIVE_TAKE_BOTTOM_RESERVE_PX,
+  SAVED_SESSION_BOTTOM_RESERVE_PX,
+} from "@/lib/follow-transcript";
 import { showsNextFix } from "@/lib/next-fix";
 import type { Criteria } from "@/lib/score-display";
 import type { TranscriptScript } from "@/lib/transcript-script";
@@ -38,7 +42,10 @@ export function RecordingPage({
           {waiting && !script.transcript && script.sentences.length === 0 ? (
             <p className="text-neutral-500">{waiting}</p>
           ) : (
-            <TimedScript script={script} />
+            <TimedScript
+              script={script}
+              reservePx={stop ? LIVE_TAKE_BOTTOM_RESERVE_PX : SAVED_SESSION_BOTTOM_RESERVE_PX}
+            />
           )}
         </div>
         {showsNextFix(recommendation) ? (
