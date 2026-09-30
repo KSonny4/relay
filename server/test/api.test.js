@@ -297,6 +297,7 @@ test("attempt 3 is stored and attempt 0 is rejected", async () => {
     assert.equal(one.json.usefulness, 4);
     assert.equal(one.json.clarity, 4);
     assert.equal(one.json.recommendation, "Name the first command a developer should run.");
+    assert.deepEqual(one.json.sentences, []);
     assert.equal(typeof one.json.createdAt, "string");
     assert.equal("audio" in one.json, false);
     assert.equal("audioBase64" in one.json, false);
@@ -328,6 +329,7 @@ test("older rows that only stored one score omit the three marks", async () => {
   assert.equal(one.transcript, "old pitch");
   assert.equal("execution" in one, false);
   assert.equal("audio" in one, false);
+  assert.deepEqual(one.sentences, []);
 });
 
 test("sessions are newest first and omit audio bytes", async () => {
@@ -370,10 +372,33 @@ test("Deepgram grant returns only the short-lived accessToken", async () => {
 
 test("POST /api/transcribe sends raw audio to Deepgram listen and returns only the transcript", async () => {
   const audio = Buffer.from("SECRET-AUDIO-BYTES");
+  const sentences = [
+    { text: "Ship a smaller diff.", start: 0.4, end: 1.8 },
+    { text: "Then name the command.", start: 1.9, end: 3.1 },
+  ];
   const fetchMock = mockFetch({
     listen: {
       results: {
-        channels: [{ alternatives: [{ transcript: "Ship a smaller diff.", confidence: 0.99 }] }],
+        channels: [
+          {
+            alternatives: [
+              {
+                transcript: "Ship a smaller diff. Then name the command.",
+                confidence: 0.99,
+                paragraphs: {
+                  paragraphs: [
+                    {
+                      sentences: [
+                        { text: "Ship a smaller diff.", start: 0.4, end: 1.8 },
+                        { text: "Then name the command.", start: 1.9, end: 3.1 },
+                      ],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
       },
     },
   });
@@ -384,7 +409,10 @@ test("POST /api/transcribe sends raw audio to Deepgram listen and returns only t
     });
     assert.equal(res.status, 200);
     assert.equal(res.headers.get("access-control-allow-origin"), "http://127.0.0.1:43123");
-    assert.deepEqual(res.json, { transcript: "Ship a smaller diff." });
+    assert.deepEqual(res.json, {
+      transcript: "Ship a smaller diff. Then name the command.",
+      sentences,
+    });
     assert.equal(res.text.includes("SECRET-AUDIO-BYTES"), false);
     assert.equal(res.text.includes("dg-test-key"), false);
     assert.equal("audio" in res.json, false);
@@ -395,6 +423,7 @@ test("POST /api/transcribe sends raw audio to Deepgram listen and returns only t
     assert.equal(`${url.origin}${url.pathname}`, "https://api.deepgram.com/v1/listen");
     assert.equal(url.searchParams.get("model"), "nova-2");
     assert.equal(url.searchParams.get("smart_format"), "true");
+    assert.equal(url.searchParams.get("paragraphs"), "true");
     assert.equal(call.init.method, "POST");
     assert.equal(call.init.headers.authorization, "Token dg-test-key");
     assert.equal(call.init.headers["content-type"], "audio/webm");
@@ -420,6 +449,30 @@ test("Deepgram without a key is 503 and does not call the network", async () => 
     assert.equal(transcribed.status, 503);
     assert.match(transcribed.json.error, /DEEPGRAM_API_KEY/);
     assert.equal(fetchMock.calls.length, 0);
+  });
+});
+
+test("a saved session keeps sentence times and an old row returns an empty list", async () => {
+  const fetchMock = mockFetch();
+  const sentences = [{ text: "Hi, how are you?", start: 0.2, end: 1.4 }];
+  await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base }) => {
+    const created = await request(base, "POST", "/api/sessions", {
+      attempt: 1,
+      transcript: "Hi, how are you?",
+      sentences,
+    });
+    assert.equal(created.status, 200);
+    const one = await request(base, "GET", `/api/sessions/${created.json.id}`);
+    assert.equal(one.status, 200);
+    assert.deepEqual(one.json.sentences, sentences);
+    assert.equal(one.text.includes("audio"), false);
+
+    const bare = await request(base, "POST", "/api/sessions", {
+      attempt: 2,
+      transcript: "No times were stored.",
+    });
+    const without = await request(base, "GET", `/api/sessions/${bare.json.id}`);
+    assert.deepEqual(without.json.sentences, []);
   });
 });
 
@@ -547,9 +600,13 @@ test("postgres list query does not select audio and non-local urls use ssl", asy
   assert.match(queries[2].text, /execution/);
   assert.match(queries[2].text, /usefulness/);
   assert.match(queries[2].text, /clarity/);
+  assert.match(queries[2].text, /sentences/);
   assert.doesNotMatch(queries[2].text, /\baudio\b/);
+  assert.equal(queries[0].params[13], null);
   await store.init();
-  assert.match(queries.map((query) => query.text).join("\n"), /ADD COLUMN IF NOT EXISTS execution/);
+  const sql = queries.map((query) => query.text).join("\n");
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS execution/);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS sentences jsonb/);
 
   const remote = postgresOptions("postgres://user:s3cret@dpg-example.render.com/relay");
   assert.deepEqual(remote.ssl, { rejectUnauthorized: false });

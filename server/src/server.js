@@ -60,7 +60,8 @@ export const CRITIC_INSTRUCTIONS =
 const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/systemone";
 const DEEPGRAM_GRANT_URL = "https://api.deepgram.com/v1/auth/grant";
-const DEEPGRAM_LISTEN_URL = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true";
+const DEEPGRAM_LISTEN_URL =
+  "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&paragraphs=true";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODEL = "gpt-4.1-mini";
 const BODY_LIMIT = 32 * 1024 * 1024;
@@ -174,6 +175,72 @@ export function transcriptText(json) {
   return typeof text === "string" ? text : null;
 }
 
+export function sentenceTimes(json) {
+  const groups = json?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs;
+  if (!Array.isArray(groups)) return [];
+  const sentences = [];
+  for (const group of groups) {
+    const items = Array.isArray(group?.sentences) ? group.sentences : [];
+    for (const sentence of items) {
+      if (
+        typeof sentence?.text !== "string" ||
+        typeof sentence.start !== "number" ||
+        typeof sentence.end !== "number" ||
+        !Number.isFinite(sentence.start) ||
+        !Number.isFinite(sentence.end)
+      ) {
+        continue;
+      }
+      sentences.push({ text: sentence.text, start: sentence.start, end: sentence.end });
+    }
+  }
+  return sentences;
+}
+
+export function normalizeSentences(value) {
+  if (value == null) return [];
+  if (!Array.isArray(value)) throw httpError(400, "sentences must be an array");
+  return value.map((sentence) => {
+    if (
+      !sentence ||
+      typeof sentence !== "object" ||
+      Array.isArray(sentence) ||
+      typeof sentence.text !== "string" ||
+      typeof sentence.start !== "number" ||
+      typeof sentence.end !== "number" ||
+      !Number.isFinite(sentence.start) ||
+      !Number.isFinite(sentence.end)
+    ) {
+      throw httpError(400, "each sentence needs text, start, and end in seconds");
+    }
+    return { text: sentence.text, start: sentence.start, end: sentence.end };
+  });
+}
+
+function storedSentences(value) {
+  if (value == null) return [];
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((sentence) => {
+    if (
+      !sentence ||
+      typeof sentence.text !== "string" ||
+      typeof sentence.start !== "number" ||
+      typeof sentence.end !== "number"
+    ) {
+      return [];
+    }
+    return [{ text: sentence.text, start: sentence.start, end: sentence.end }];
+  });
+}
+
 export function firstSentence(text) {
   const trimmed = String(text ?? "").trim().replace(/\s+/g, " ");
   if (!trimmed) throw httpError(502, "OpenAI recommendation was empty");
@@ -255,12 +322,13 @@ export function createPostgresStore(pool) {
       await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS execution integer`);
       await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS usefulness integer`);
       await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS clarity integer`);
+      await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS sentences jsonb`);
     },
     async insert(row) {
       await pool.query(
         `INSERT INTO sessions
-          (id, attempt, transcript, audio, mime_type, score, level, confidence, recommendation, created_at, execution, usefulness, clarity)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          (id, attempt, transcript, audio, mime_type, score, level, confidence, recommendation, created_at, execution, usefulness, clarity, sentences)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
           row.id,
           row.attempt,
@@ -275,6 +343,7 @@ export function createPostgresStore(pool) {
           row.execution,
           row.usefulness,
           row.clarity,
+          row.sentences == null ? null : JSON.stringify(row.sentences),
         ],
       );
     },
@@ -288,7 +357,7 @@ export function createPostgresStore(pool) {
     },
     async get(id) {
       const result = await pool.query(
-        `SELECT id, attempt, transcript, score, level, confidence, recommendation, created_at, execution, usefulness, clarity
+        `SELECT id, attempt, transcript, score, level, confidence, recommendation, created_at, execution, usefulness, clarity, sentences
          FROM sessions
          WHERE id = $1`,
         [id],
@@ -311,6 +380,7 @@ function sessionFromPostgres(row) {
     level: row.level,
     confidence: row.confidence,
     recommendation: row.recommendation,
+    sentences: row.sentences,
     createdAt:
       row.created_at instanceof Date
         ? row.created_at.toISOString()
@@ -349,6 +419,7 @@ function recording(row) {
     level: row.level,
     confidence: row.confidence,
     recommendation: row.recommendation,
+    sentences: storedSentences(row.sentences),
     createdAt: row.createdAt,
   };
 }
@@ -531,6 +602,7 @@ async function handleSessionsPost(req, res, { fetchImpl, store, env }) {
   }
 
   const audio = decodeAudio(body.audioBase64);
+  const sentences = normalizeSentences(body.sentences);
   const scored = await scoreTranscript(fetchImpl, env, body.transcript);
   const row = {
     id: randomUUID(),
@@ -545,6 +617,7 @@ async function handleSessionsPost(req, res, { fetchImpl, store, env }) {
     level: scored.level,
     confidence: scored.confidence,
     recommendation: scored.recommendation,
+    sentences,
     createdAt: new Date().toISOString(),
   };
   await store.insert(row);
@@ -606,10 +679,16 @@ async function handleTranscribe(req, res, { fetchImpl, env }) {
     json = null;
   }
   const transcript = transcriptText(json);
-  if (!response.ok || transcript == null || transcript.includes(apiKey)) {
+  const sentences = sentenceTimes(json);
+  if (
+    !response.ok ||
+    transcript == null ||
+    transcript.includes(apiKey) ||
+    sentences.some((sentence) => sentence.text.includes(apiKey))
+  ) {
     throw httpError(502, "Deepgram transcription failed");
   }
-  send(req, res, 200, { transcript });
+  send(req, res, 200, { transcript, sentences });
 }
 
 async function handle(req, res, options) {
