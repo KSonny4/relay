@@ -51,6 +51,7 @@ export const SCORE_QUESTIONS = [
 const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/systemone";
 const DEEPGRAM_GRANT_URL = "https://api.deepgram.com/v1/auth/grant";
+const DEEPGRAM_LISTEN_URL = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODEL = "gpt-4.1-mini";
 const BODY_LIMIT = 32 * 1024 * 1024;
@@ -157,6 +158,11 @@ export function mapMarks(answers) {
     level: parts[weakest].level,
     confidence: parts[weakest].confidence,
   };
+}
+
+export function transcriptText(json) {
+  const text = json?.results?.channels?.[0]?.alternatives?.[0]?.transcript;
+  return typeof text === "string" ? text : null;
 }
 
 export function firstSentence(text) {
@@ -563,6 +569,41 @@ async function handleDeepgram(req, res, { fetchImpl, env }) {
   send(req, res, 200, { accessToken });
 }
 
+async function handleTranscribe(req, res, { fetchImpl, env }) {
+  const apiKey = env.DEEPGRAM_API_KEY;
+  if (!apiKey) {
+    throw httpError(503, "Deepgram is not configured. Set DEEPGRAM_API_KEY.");
+  }
+  const body = await parseJsonBody(req);
+  if (typeof body.mimeType !== "string" || body.mimeType.length === 0) {
+    throw httpError(400, "mimeType must be a string");
+  }
+  const audio = decodeAudio(body.audioBase64);
+  if (!audio || audio.length === 0) {
+    throw httpError(400, "audioBase64 must be a string");
+  }
+  const response = await fetchImpl(DEEPGRAM_LISTEN_URL, {
+    method: "POST",
+    headers: {
+      authorization: `Token ${apiKey}`,
+      "content-type": body.mimeType,
+    },
+    body: audio,
+  });
+  const text = await response.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  const transcript = transcriptText(json);
+  if (!response.ok || transcript == null || transcript.includes(apiKey)) {
+    throw httpError(502, "Deepgram transcription failed");
+  }
+  send(req, res, 200, { transcript });
+}
+
 async function handle(req, res, options) {
   const url = new URL(req.url || "/", "http://127.0.0.1");
   if (req.method === "OPTIONS") {
@@ -586,6 +627,10 @@ async function handle(req, res, options) {
   }
   if (req.method === "POST" && url.pathname === "/api/deepgram/token") {
     await handleDeepgram(req, res, options);
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/transcribe") {
+    await handleTranscribe(req, res, options);
     return;
   }
   if (req.method === "POST" && url.pathname === "/api/classify") {

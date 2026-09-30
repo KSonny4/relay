@@ -62,7 +62,7 @@ function openaiResponse(content = "Name the first command a developer should run
   return { choices: [{ message: { content } }] };
 }
 
-function mockFetch({ jev, openai, deepgram } = {}) {
+function mockFetch({ jev, openai, deepgram, listen } = {}) {
   const calls = [];
   const impl = async (url, init) => {
     const href = String(url);
@@ -72,6 +72,13 @@ function mockFetch({ jev, openai, deepgram } = {}) {
     }
     if (href === "https://api.openai.com/v1/chat/completions") {
       return Response.json(openai ?? openaiResponse());
+    }
+    if (href.startsWith("https://api.deepgram.com/v1/listen")) {
+      return Response.json(
+        listen ?? {
+          results: { channels: [{ alternatives: [{ transcript: "Ship a smaller diff." }] }] },
+        },
+      );
     }
     if (href === "https://api.deepgram.com/v1/auth/grant") {
       return Response.json(deepgram ?? { access_token: "eyJhbGciOiJIUzI1NiJ9.short", expires_in: 30 });
@@ -359,12 +366,57 @@ test("Deepgram grant returns only the short-lived accessToken", async () => {
   });
 });
 
+test("POST /api/transcribe sends raw audio to Deepgram listen and returns only the transcript", async () => {
+  const audio = Buffer.from("SECRET-AUDIO-BYTES");
+  const fetchMock = mockFetch({
+    listen: {
+      results: {
+        channels: [{ alternatives: [{ transcript: "Ship a smaller diff.", confidence: 0.99 }] }],
+      },
+    },
+  });
+  await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base, store }) => {
+    const res = await request(base, "POST", "/api/transcribe", {
+      audioBase64: audio.toString("base64"),
+      mimeType: "audio/webm",
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("access-control-allow-origin"), "http://127.0.0.1:43123");
+    assert.deepEqual(res.json, { transcript: "Ship a smaller diff." });
+    assert.equal(res.text.includes("SECRET-AUDIO-BYTES"), false);
+    assert.equal(res.text.includes("dg-test-key"), false);
+    assert.equal("audio" in res.json, false);
+    assert.equal("audioBase64" in res.json, false);
+    assert.equal(fetchMock.calls.length, 1);
+    const call = fetchMock.calls[0];
+    const url = new URL(call.url);
+    assert.equal(`${url.origin}${url.pathname}`, "https://api.deepgram.com/v1/listen");
+    assert.equal(url.searchParams.get("model"), "nova-2");
+    assert.equal(url.searchParams.get("smart_format"), "true");
+    assert.equal(call.init.method, "POST");
+    assert.equal(call.init.headers.authorization, "Token dg-test-key");
+    assert.equal(call.init.headers["content-type"], "audio/webm");
+    assert.equal(Buffer.from(call.init.body).equals(audio), true);
+    assert.equal(store.rows.length, 0);
+    assert.equal(
+      fetchMock.calls.some((item) => item.url.includes("openai") || item.url.includes("systemone")),
+      false,
+    );
+  });
+});
+
 test("Deepgram without a key is 503 and does not call the network", async () => {
   const fetchMock = mockFetch();
   await withServer({ fetchImpl: fetchMock.impl, env: {} }, async ({ base }) => {
     const res = await request(base, "POST", "/api/deepgram/token");
     assert.equal(res.status, 503);
     assert.match(res.json.error, /DEEPGRAM_API_KEY/);
+    const transcribed = await request(base, "POST", "/api/transcribe", {
+      audioBase64: Buffer.from("SECRET-AUDIO-BYTES").toString("base64"),
+      mimeType: "audio/webm",
+    });
+    assert.equal(transcribed.status, 503);
+    assert.match(transcribed.json.error, /DEEPGRAM_API_KEY/);
     assert.equal(fetchMock.calls.length, 0);
   });
 });
