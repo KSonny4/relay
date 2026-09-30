@@ -2,8 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { CriteriaScore } from "@/components/criteria-score";
-import { TimedScript } from "@/components/timed-script";
+import { RecordingPage } from "@/components/recording-page";
 import { nextAttempt } from "@/lib/attempt-number";
 import {
   classifyLive,
@@ -257,39 +256,18 @@ export function LiveTake() {
     };
   }, [router]);
 
-  const transcript = script.transcript;
-
   return (
-    <div className="flex min-h-dvh flex-col bg-white text-black md:grid md:h-dvh md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:overflow-hidden">
-      <section className="flex flex-col gap-10 border-b border-black/10 px-[clamp(1.25rem,4vw,4rem)] py-[clamp(1.5rem,4vw,4rem)] md:justify-between md:border-r md:border-b-0">
-        <CriteriaScore criteria={criteria} />
-        <div>
-          {error ? (
-            <p role="alert" className="mb-6 text-sm">
-              {error}
-            </p>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => finishRef.current()}
-            className="h-12 rounded-full bg-black px-8 text-sm font-medium text-white"
-          >
-            Stop
-          </button>
-        </div>
-      </section>
-      <section className="min-h-0 flex-1 overflow-y-auto px-[clamp(1.25rem,4vw,4rem)] py-[clamp(1.5rem,4vw,4rem)]">
-        <div aria-live="polite" className="text-[clamp(1.5rem,2.6vw,2.25rem)] leading-snug break-words">
-          {transcript || script.sentences.length > 0 ? (
-            <TimedScript script={script} />
-          ) : (
-            <span className="text-neutral-500">
-              {phase === "recording" ? "Waiting for speech." : "The words show up here."}
-            </span>
-          )}
-        </div>
-      </section>
-    </div>
+    <RecordingPage
+      criteria={criteria}
+      recommendation={null}
+      script={script}
+      error={error}
+      waiting={phase === "recording" ? "Waiting for speech." : "The words show up here."}
+      stop={{
+        label: phase === "classifying" ? "Saving" : "Stop",
+        onClick: () => finishRef.current(),
+      }}
+    />
   );
 }
 

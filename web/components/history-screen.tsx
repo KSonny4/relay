@@ -75,7 +75,7 @@ export function HistoryScreen() {
         ) : (
           <ul className="mt-4">
             {history.map((session) => (
-              <li key={session.id} className="border-b border-black/10">
+              <li key={session.id} className="border-b border-white/10">
                 <Link
                   href={`/sessions/${session.id}`}
                   className="flex flex-col gap-3 py-4 md:flex-row md:items-baseline md:justify-between md:gap-8 md:py-5"
@@ -122,7 +122,7 @@ export function HistoryScreen() {
                 onChange={(event) => setPaste(event.target.value)}
                 rows={2}
                 placeholder="Paste a transcript"
-                className="w-full resize-none border-b border-black/20 bg-transparent py-2 text-sm leading-6 outline-none"
+                className="w-full resize-none border-b border-white/20 bg-transparent py-2 text-sm leading-6 text-white outline-none"
               />
               <button
                 type="submit"

@@ -1,7 +1,4 @@
-import {
-  formatSentenceSpan,
-  type TranscriptScript,
-} from "@/lib/transcript-script";
+import { formatSentenceSpan, type TranscriptScript } from "@/lib/transcript-script";
 
 export function TimedScript({ script }: { script: TranscriptScript }) {
   if (script.sentences.length > 0) {
@@ -10,12 +7,12 @@ export function TimedScript({ script }: { script: TranscriptScript }) {
         {script.sentences.map((sentence, index) => (
           <li
             key={`${sentence.start}-${sentence.end}-${index}`}
-            className="flex flex-col gap-1 border-b border-black/10 py-4 md:flex-row md:items-baseline md:gap-8"
+            className="flex items-baseline gap-4 py-3 md:gap-8"
           >
-            <span className="shrink-0 text-sm text-neutral-500 tabular-nums">
+            <span className="w-[6.5rem] shrink-0 text-sm text-neutral-500 tabular-nums md:w-[7.5rem]">
               {formatSentenceSpan(sentence)}
             </span>
-            <span className="text-[clamp(1.25rem,2.2vw,1.75rem)] leading-snug break-words">
+            <span className="min-w-0 text-[clamp(1.05rem,2vw,1.35rem)] leading-snug break-words text-white">
               {sentence.text}
             </span>
           </li>
@@ -25,7 +22,7 @@ export function TimedScript({ script }: { script: TranscriptScript }) {
   }
 
   return (
-    <p className="text-[clamp(1.5rem,2.4vw,2.25rem)] leading-snug break-words">
+    <p className="text-[clamp(1.05rem,2vw,1.35rem)] leading-snug break-words text-white">
       {script.transcript || "—"}
     </p>
   );
