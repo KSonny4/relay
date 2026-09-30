@@ -34,7 +34,7 @@
     <span class="dot"><i></i>Relay · Live app</span>
     <a href="https://relay-web-s1d6.onrender.com" target="_blank" rel="noopener">relay-web-s1d6.onrender.com</a>
   </header>
-  <iframe id="web" title="Relay live app" src="https://relay-web-s1d6.onrender.com/" allow="microphone; clipboard-write"></iframe>
+  <iframe id="web" title="Relay live app" src="https://relay-web-s1d6.onrender.com/?present=1" allow="microphone; clipboard-write"></iframe>
 </section>
 <script>
 (function () {
@@ -59,16 +59,30 @@
   web.addEventListener('mouseleave', reclaim);
   document.addEventListener('mousemove', reclaim);
 
-  function syncHash() {
-    try {
-      var h = deck.contentWindow.location.hash;
-      if (h && h !== location.hash) history.replaceState(null, '', h);
-    } catch (err) {}
+  // The live app starts recording once, when the presenter leaves the intro slide (1) for slide 2,
+  // from the keyboard, a click or the phone. Slides taken over from the server on load do not count.
+  var WEB_ORIGIN = 'https://relay-web-s1d6.onrender.com';
+  var slide = 0, startSent = false, webLoaded = false, startWaiting = false;
+  function startRecording() {
+    startSent = true;
+    if (!webLoaded) { startWaiting = true; return; }
+    web.contentWindow.postMessage({ type: 'relay:start-recording' }, WEB_ORIGIN);
   }
+  // A cold app may still be loading when the presenter moves on; the message then goes as soon as it has loaded.
+  web.addEventListener('load', function () {
+    webLoaded = true;
+    if (startWaiting) { startWaiting = false; web.contentWindow.postMessage({ type: 'relay:start-recording' }, WEB_ORIGIN); }
+  });
+
+  // The slides report every change, including ones made from the phone, so this address shows the slide too.
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data || !e.data.relaySlide) return;
+    var next = e.data.relaySlide;
+    if (!startSent && e.data.byPresenter && slide === 1 && next === 2) startRecording();
+    slide = next;
+    history.replaceState(null, '', '#' + next);
+  });
   deck.addEventListener('load', function () {
-    syncHash();
-    deck.contentWindow.addEventListener('keydown', function () { setTimeout(syncHash, 0); });
-    deck.contentWindow.addEventListener('click', function () { setTimeout(syncHash, 0); });
     deck.contentDocument.addEventListener('mousemove', reclaim);
     window.focus();
   });

@@ -155,37 +155,16 @@
   </nav>
 </main>
 
+<script src="mode.js"></script>
+<script src="slides.js"></script>
+<script src="sync.js"></script>
 <script>
 (function () {
-  // The spoken script, verbatim from the "60 seconds" section of pitch.md,
-  // one scene per timestamp. *Asterisks* mark emphasised words.
-  var SCENES = [
-    [
-      'Hackathon teams find out their pitch failed only after they sit down.',
-      'By then the judges have moved on, and nobody tells you which sentence lost them.'
-    ],
-    [
-      '*Relay* fixes that before you stand up.',
-      'You say your pitch out loud, and Relay scores it on execution, usefulness and clarity, each from 1 to 5.',
-      'The total is execution times two plus usefulness plus clarity, *out of 20.*',
-      'Then it gives you *one line to fix.*',
-      'Not a list.',
-      'One line.',
-      'You fix that line, say it again, and the number climbs.'
-    ],
-    [
-      'That is *working right now.*',
-      'The live app is beside me, and it is scoring these exact words while I say them.',
-      'I am pitching *Relay* on *Relay*.'
-    ],
-    [
-      'Today I am building it.',
-      'Next, every team at this hackathon rehearses with it before they present.'
-    ],
-    [
-      'So here is what to try next: say your pitch to Relay, fix the one line it gives you, and *walk in already knowing your number.*'
-    ]
-  ];
+  // The deck projects each slide's snippets; the full words to say are on the phone page, /control.
+  // On the online site one intro slide comes first, and OFFSET shifts the score card's scenes past it.
+  var DECK = window.relayDeck();
+  var SCENES = DECK.slides.map(function (slide) { return slide.show; });
+  var OFFSET = DECK.offset;
 
   // Jev (jev-latest) scored these exact words once per judging criterion on a
   // 1–5 scale: Execution 4.55, Usefulness 4.85, Clarity 4.97. Shown to one decimal.
@@ -242,17 +221,21 @@
 
   var scene = -1;
   var opened = false;
+  // False until the deck has taken the server's slide on load, so that catch-up is not reported as the presenter's move.
+  var armed = false;
 
   function show(n) {
     n = Math.max(0, Math.min(SCENES.length - 1, n));
     if (n === scene) return;
     scene = n;
     history.replaceState(null, '', '#' + (n + 1));
+    if (window.parent !== window) { try { window.parent.postMessage({ relaySlide: n + 1, byPresenter: armed }, location.origin); } catch (err) {} }
 
     body.classList.toggle('first', n === 0);
-    body.classList.toggle('app-on', n >= 1);
-    body.classList.toggle('total-on', n >= TOTAL_FROM);
-    body.classList.toggle('fix-on', n >= FIX_FROM);
+    var k = n - OFFSET;
+    body.classList.toggle('app-on', k >= 1);
+    body.classList.toggle('total-on', k >= TOTAL_FROM);
+    body.classList.toggle('fix-on', k >= FIX_FROM);
     progress.style.width = ((n + 1) / SCENES.length * 100) + '%';
     count.textContent = (n + 1) + ' / ' + SCENES.length;
     prevBtn.disabled = n === 0;
@@ -276,27 +259,38 @@
     });
 
     CRITERIA.forEach(function (c, i) {
-      var on = n >= c.from;
+      var on = k >= c.from;
       rows[i].classList.toggle('on', on);
       rows[i].querySelector('.val').innerHTML = on ? fmt(c.score) + '<small> / 5</small>' : '–';
       Array.prototype.forEach.call(rows[i].querySelectorAll('.pips b'), function (b, k) {
         b.style.setProperty('--fill', on ? Math.max(0, Math.min(1, c.score - k)) * 100 + '%' : '0%');
       });
     });
-    totalEl.textContent = n >= TOTAL_FROM ? fmt(total) : '–';
+    totalEl.textContent = k >= TOTAL_FROM ? fmt(total) : '–';
+  }
+
+  // A viewer's move goes to the server, so the phone page follows; moves from the phone arrive through show().
+  var sync = window.RelaySync(function (slide) { show(slide - 1); armed = true; });
+  setTimeout(function () { armed = true; }, 2500);
+  function go(n) {
+    n = Math.max(0, Math.min(SCENES.length - 1, n));
+    if (n === scene) return;
+    armed = true;
+    show(n);
+    sync.publish(n + 1);
   }
 
   document.addEventListener('keydown', function (e) {
     var k = e.key;
-    if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || k === ' ' || k === 'Enter') { e.preventDefault(); show(scene + 1); }
-    else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); show(scene - 1); }
-    else if (k === 'Home') { e.preventDefault(); show(0); }
-    else if (k === 'End') { e.preventDefault(); show(SCENES.length - 1); }
+    if (k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || k === ' ' || k === 'Enter') { e.preventDefault(); go(scene + 1); }
+    else if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); go(scene - 1); }
+    else if (k === 'Home') { e.preventDefault(); go(0); }
+    else if (k === 'End') { e.preventDefault(); go(SCENES.length - 1); }
   });
-  prevBtn.addEventListener('click', function (e) { e.stopPropagation(); show(scene - 1); });
-  nextBtn.addEventListener('click', function (e) { e.stopPropagation(); show(scene + 1); });
+  prevBtn.addEventListener('click', function (e) { e.stopPropagation(); go(scene - 1); });
+  nextBtn.addEventListener('click', function (e) { e.stopPropagation(); go(scene + 1); });
   document.addEventListener('click', function (e) {
-    show(e.clientX < window.innerWidth * 0.25 ? scene - 1 : scene + 1);
+    go(e.clientX < window.innerWidth * 0.25 ? scene - 1 : scene + 1);
   });
 
   var start = parseInt((location.hash.match(/^#(\d+)$/) || [])[1], 10);
