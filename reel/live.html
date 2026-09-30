@@ -130,7 +130,7 @@
   @keyframes word { from { opacity: 0; } }
   .mini-foot {
     border-top: 2px solid var(--line); padding: calc(var(--u) * 2) calc(var(--u) * 3);
-    display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: calc(var(--u) * 2);
+    display: grid; justify-items: start; gap: calc(var(--u) * 1.4);
   }
   #mini-btn {
     display: inline-flex; align-items: center; gap: calc(var(--u) * 1.2);
@@ -514,7 +514,7 @@
       return transcribe(blob, b64);
     }).then(function (text) {
       transcript = text.trim();
-      if (!transcript) { setIdle('Record again'); status('No words heard. Nothing was scored.', true); return; }
+      if (!transcript) { setIdle(); status('No words heard. Nothing was scored.', true); return; }
       status('Scoring the take');
       var attempt = (parseInt(localStorage.getItem('relay-live-attempt'), 10) || 0) + 1;
       localStorage.setItem('relay-live-attempt', String(attempt));
@@ -529,7 +529,7 @@
         return r;
       });
       return Promise.allSettled([classify, session]).then(function (out) {
-        setIdle('Record again');
+        setIdle();
         if (out[1].status === 'fulfilled') status('Saved as take ' + out[1].value.attempt + ' · scored by Relay');
         else if (out[0].status === 'fulfilled') {
           live.note = 'No line returned: ' + out[1].reason.message + '.';
@@ -538,7 +538,7 @@
         } else status('Scoring failed: ' + out[1].reason.message, true);
       });
     }).catch(function (err) {
-      setIdle('Record again');
+      setIdle();
       status('Transcription failed: ' + err.message, true);
     });
   }
