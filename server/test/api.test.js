@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CORS_ORIGINS,
   SCORE_QUESTIONS,
   criterionInteger,
   createMemoryStore,
@@ -564,11 +565,28 @@ test("ONRENDER_URL is not a database url and Render PORT is optional", () => {
   assert.equal(listenPort({ PORT: "10000" }), 10000);
 });
 
-test("CORS preflight allows the web origin", async () => {
+test("CORS preflight echoes only the three allowed origins", async () => {
   await withServer({ fetchImpl: mockFetch().impl, env: readyEnv, store: createMemoryStore() }, async ({ base }) => {
-    const res = await fetch(`${base}/api/sessions`, { method: "OPTIONS" });
-    assert.equal(res.status, 204);
-    assert.equal(res.headers.get("access-control-allow-origin"), "http://127.0.0.1:43123");
-    assert.match(res.headers.get("access-control-allow-methods"), /POST/);
+    assert.deepEqual(CORS_ORIGINS, [
+      "https://relay-reel.onrender.com",
+      "https://relay-web-s1d6.onrender.com",
+      "http://127.0.0.1:43123",
+    ]);
+    for (const origin of CORS_ORIGINS) {
+      const res = await fetch(`${base}/api/sessions`, {
+        method: "OPTIONS",
+        headers: { origin, "access-control-request-method": "POST" },
+      });
+      assert.equal(res.status, 204);
+      assert.equal(res.headers.get("access-control-allow-origin"), origin);
+      assert.notEqual(res.headers.get("access-control-allow-origin"), "*");
+      assert.match(res.headers.get("access-control-allow-methods"), /POST/);
+    }
+    const blocked = await fetch(`${base}/api/classify`, {
+      method: "OPTIONS",
+      headers: { origin: "https://evil.example", "access-control-request-method": "POST" },
+    });
+    assert.equal(blocked.status, 204);
+    assert.equal(blocked.headers.get("access-control-allow-origin"), null);
   });
 });

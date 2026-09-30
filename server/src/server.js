@@ -1,8 +1,16 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 
-export const CORS_ORIGIN = "http://127.0.0.1:43123";
+export const CORS_ORIGINS = [
+  "https://relay-reel.onrender.com",
+  "https://relay-web-s1d6.onrender.com",
+  "http://127.0.0.1:43123",
+];
 export const PORT = 43124;
+
+export function allowedOrigin(origin) {
+  return typeof origin === "string" && CORS_ORIGINS.includes(origin) ? origin : null;
+}
 
 export const SCORE_QUESTIONS = [
   {
@@ -342,15 +350,16 @@ function createdResponse(row) {
   };
 }
 
-function writeCors(res) {
-  res.setHeader("access-control-allow-origin", CORS_ORIGIN);
+function writeCors(req, res) {
+  const origin = allowedOrigin(req.headers.origin);
+  if (origin) res.setHeader("access-control-allow-origin", origin);
   res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
   res.setHeader("access-control-allow-headers", "Content-Type");
   res.setHeader("vary", "Origin");
 }
 
-function send(res, status, body) {
-  writeCors(res);
+function send(req, res, status, body) {
+  writeCors(req, res);
   if (status === 204) {
     res.writeHead(204);
     res.end();
@@ -485,7 +494,7 @@ async function handleClassify(req, res, { fetchImpl, env }) {
     throw httpError(400, "transcript must be a string");
   }
   const mapped = await callJev(fetchImpl, env, body.transcript);
-  send(res, 200, {
+  send(req, res, 200, {
     score: mapped.score,
     execution: mapped.execution,
     usefulness: mapped.usefulness,
@@ -525,10 +534,10 @@ async function handleSessionsPost(req, res, { fetchImpl, store, env }) {
     createdAt: new Date().toISOString(),
   };
   await store.insert(row);
-  send(res, 200, createdResponse(row));
+  send(req, res, 200, createdResponse(row));
 }
 
-async function handleDeepgram(res, { fetchImpl, env }) {
+async function handleDeepgram(req, res, { fetchImpl, env }) {
   const apiKey = env.DEEPGRAM_API_KEY;
   if (!apiKey) {
     throw httpError(503, "Deepgram is not configured. Set DEEPGRAM_API_KEY.");
@@ -551,32 +560,32 @@ async function handleDeepgram(res, { fetchImpl, env }) {
   if (accessToken === apiKey) {
     throw httpError(502, "Deepgram token request failed");
   }
-  send(res, 200, { accessToken });
+  send(req, res, 200, { accessToken });
 }
 
 async function handle(req, res, options) {
   const url = new URL(req.url || "/", "http://127.0.0.1");
   if (req.method === "OPTIONS") {
-    send(res, 204);
+    send(req, res, 204);
     return;
   }
   if (req.method === "GET" && url.pathname === "/api/sessions") {
     const sessions = await options.store.list();
-    send(res, 200, { sessions });
+    send(req, res, 200, { sessions });
     return;
   }
   const sessionMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)$/);
   if (req.method === "GET" && sessionMatch) {
     const session = await options.store.get(decodeURIComponent(sessionMatch[1]));
     if (!session) {
-      send(res, 404, { error: "Session not found" });
+      send(req, res, 404, { error: "Session not found" });
       return;
     }
-    send(res, 200, session);
+    send(req, res, 200, session);
     return;
   }
   if (req.method === "POST" && url.pathname === "/api/deepgram/token") {
-    await handleDeepgram(res, options);
+    await handleDeepgram(req, res, options);
     return;
   }
   if (req.method === "POST" && url.pathname === "/api/classify") {
@@ -587,7 +596,7 @@ async function handle(req, res, options) {
     await handleSessionsPost(req, res, options);
     return;
   }
-  send(res, 404, { error: "Not found" });
+  send(req, res, 404, { error: "Not found" });
 }
 
 export function createServer({
@@ -601,7 +610,7 @@ export function createServer({
       if (res.headersSent || res.writableEnded) return;
       const status = err.status || 500;
       const message = status === 500 ? "Internal error" : err.message;
-      send(res, status, { error: message });
+      send(req, res, status, { error: message });
     });
   });
 }
