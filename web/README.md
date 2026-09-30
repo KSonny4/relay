@@ -12,7 +12,7 @@ npm install
 npm run dev
 ```
 
-The app serves on [http://127.0.0.1:43123](http://127.0.0.1:43123). It calls the Relay API at `http://127.0.0.1:43124`.
+The app serves on [http://127.0.0.1:43123](http://127.0.0.1:43123). By default it calls the live Relay API at `https://relay-server-9hzn.onrender.com`. Set `NEXT_PUBLIC_RELAY_API_BASE=http://127.0.0.1:43124` to use a local API instead.
 
 `POST /api/classify` updates the live score. `POST /api/sessions` saves the take when it ends. The browser asks `POST /api/deepgram/token` for a short-lived Deepgram access token. The long-lived Deepgram key is not part of this app.
 

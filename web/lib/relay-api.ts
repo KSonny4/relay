@@ -1,6 +1,9 @@
+import { resolveRelayApiBase } from "./relay-api-base";
 import { liveClassifyPayload } from "./take-rules";
 
-export const RELAY_API_BASE = "http://127.0.0.1:43124";
+export { LIVE_RELAY_API_BASE, resolveRelayApiBase } from "./relay-api-base";
+
+export const RELAY_API_BASE = resolveRelayApiBase(process.env.NEXT_PUBLIC_RELAY_API_BASE);
 
 export type Attempt = 1 | 2;
 
