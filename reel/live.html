@@ -52,10 +52,12 @@
     deck.contentDocument.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, bubbles: true, cancelable: true }));
   });
 
-  // Keys typed into the live app stay there; once the pointer leaves it, the presenter's keys drive the slides again.
-  web.addEventListener('mouseleave', function () {
-    if (document.activeElement === web) { web.blur(); window.focus(); }
-  });
+  // Keys typed into the live app stay there; once the pointer is over the slides or this page, the presenter's keys drive the slides again.
+  function reclaim() {
+    if (document.activeElement === web) { web.blur(); deck.contentWindow.focus(); }
+  }
+  web.addEventListener('mouseleave', reclaim);
+  document.addEventListener('mousemove', reclaim);
 
   function syncHash() {
     try {
@@ -67,6 +69,7 @@
     syncHash();
     deck.contentWindow.addEventListener('keydown', function () { setTimeout(syncHash, 0); });
     deck.contentWindow.addEventListener('click', function () { setTimeout(syncHash, 0); });
+    deck.contentDocument.addEventListener('mousemove', reclaim);
     window.focus();
   });
 })();

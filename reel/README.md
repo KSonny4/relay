@@ -5,7 +5,7 @@ Petr Kubelka's pitch film for Relay, the 60-second pitch in five scenes. He stan
 | Version | File | Public URL |
 | --- | --- | --- |
 | Offline | `index.html` | https://relay-reel.onrender.com |
-| Online, with a live transcript | `live.html` + `live_server.py` | https://relay-reel-live.onrender.com |
+| Online, beside the live app | `live.html` + `live_server.py` | https://relay-reel-live.onrender.com |
 
 The offline version is one self-contained file. It makes no network calls, needs no API keys, and has no build step. The online version is described under [Online presentation](#online-presentation).
 
@@ -41,21 +41,17 @@ The criterion scores come from one call to Jev (`jev-latest`) on Sep 30, 2026, w
 
 ## Online presentation
 
-`live.html` is the same film and the same score card, with a miniature of the real app between them. Nothing in it is scripted: the words in the miniature are what the microphone heard.
+`live.html` puts the same slides on the left and the live Relay web app, https://relay-web-s1d6.onrender.com, on the right. The slides are `index.html` itself, framed as `deck.html`, so the two presentations cannot drift apart: same five scenes, same score card, manual advance only.
 
-- **Record** asks for the microphone and starts the take. The clock counts up.
-- About every 2.5 seconds the whole take so far is sent to relay-server `POST /api/transcribe` as `{ audioBase64, mimeType }`, and the returned `transcript` replaces the words shown. New words fade in.
-- **Stop** ends the take. The full recording is transcribed once more, then `POST /api/classify` fills the three criteria and `POST /api/sessions` saves the take and returns the criteria, the total and the line to fix. From then on the card shows that take instead of the scripted numbers.
-- If no words were heard, nothing is scored. Errors from relay-server are shown in the miniature as they came back.
+- The slide keys (arrows, Page Up/Down, Space, Enter, Home, End) move the slides when the page has focus. The ‹ › buttons and clicks on the slides work as in the offline version. The address ends in `#1` to `#5` and a reload opens that scene.
+- The right side is the real relay-web app with microphone access. Record, speak and Stop there; relay-web transcribes and scores through relay-server on its own. While the app has focus, keys go to the app; moving the pointer back over the slides returns the keys to the slides.
 
-Clicks and keys inside the miniature do not change the scene. Arrow keys still do.
-
-relay-server only answers browsers from its own list of origins, so the page calls `/api/*` on its own origin and `live_server.py` forwards `transcribe`, `classify` and `sessions` to https://relay-server-9hzn.onrender.com. It forwards no other route; `/api/deepgram/token` is not used. Run it locally with Python 3 and no dependencies:
+Run it locally with Python 3 and no dependencies:
 
 ```bash
 python3 reel/live_server.py
 ```
 
-Then open http://127.0.0.1:43126/. The microphone works on `127.0.0.1` and on the HTTPS Render URL.
+Then open http://127.0.0.1:43126/. The local server serves `/` (`live.html`) and `/deck.html` (`index.html`).
 
-On Render, `relay-reel-live` runs the `python:3.12-alpine` image. `LIVE_HTML_B64` holds `live.html` and `LIVE_BOOT_B64` holds `live_server.py`, and the start command is `python -c exec(__import__('base64').b64decode(__import__('os').environ['LIVE_BOOT_B64']))`.
+On Render, the `relay-reel-live` service runs the `python:3.12-alpine` image. `LIVE_HTML_B64` holds `live.html`, `DECK_HTML_B64` holds `index.html` and `LIVE_BOOT_B64` holds `live_server.py`. The start command is `python -c exec(__import__('base64').b64decode(__import__('os').environ['LIVE_BOOT_B64']))`.
