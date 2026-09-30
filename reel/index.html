@@ -15,8 +15,8 @@
     --panel: #ffffff;
     --soft: #f3f3f3;
     --line: #e2e2e2;
-    /* One size unit that fits 16:9 by height and narrower screens by width. */
-    --u: min(1vh, 0.58vw);
+    /* 1% of the height of a 16:9 frame that fits the window. */
+    --u: min(1vh, 0.5625vw);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; }
@@ -30,10 +30,11 @@
   #progress { position: fixed; top: 0; left: 0; height: 6px; width: 0; background: var(--accent); z-index: 10; }
 
   #stage {
-    position: fixed; inset: 0;
-    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 40vw);
-    gap: 4vw; align-items: center;
-    padding: calc(var(--u) * 8) 5vw calc(var(--u) * 9) 6vw;
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: calc(var(--u) * 177.78); height: calc(var(--u) * 100);
+    display: grid; grid-template-columns: minmax(0, 1fr) calc(var(--u) * 71);
+    gap: calc(var(--u) * 7); align-items: center;
+    padding: calc(var(--u) * 8) calc(var(--u) * 9) calc(var(--u) * 9) calc(var(--u) * 10.7);
   }
 
   /* Spoken lines */
@@ -57,7 +58,7 @@
   /* Product */
   #side {
     display: flex; flex-direction: column; gap: calc(var(--u) * 2.2); min-height: 0;
-    max-height: calc(100vh - var(--u) * 17);
+    max-height: calc(var(--u) * 83);
     opacity: 0; transform: translateY(calc(var(--u) * 3));
     transition: opacity .6s ease, transform .6s ease;
   }
@@ -112,7 +113,7 @@
   .caret { display: inline-block; width: .45em; height: 1em; background: var(--accent); vertical-align: -0.12em; margin-left: .12em; }
 
   #corner {
-    position: fixed; left: 6vw; bottom: calc(var(--u) * 3.2); z-index: 5;
+    position: absolute; left: calc(var(--u) * 10.7); bottom: calc(var(--u) * 3.2); z-index: 5;
     font-size: calc(var(--u) * 2.8); font-weight: 800; letter-spacing: .04em; color: var(--muted);
     opacity: 0; transition: opacity .4s ease;
   }
@@ -157,9 +158,9 @@
       <div class="transcript" id="transcript"></div>
     </section>
   </div>
+  <div id="corner">Petr Kubelka · <b>Relay</b></div>
 </main>
 
-<div id="corner">Petr Kubelka · <b>Relay</b></div>
 <div id="pause">Paused</div>
 
 <script>
