@@ -32,21 +32,21 @@ export type ClassifyInput = {
   mimeType?: string;
 };
 
-export async function fetchDeepgramAccessToken(): Promise<string> {
-  const response = await relayFetch(`${RELAY_API_BASE}/api/deepgram/token`, {
+export async function transcribeAudio(audioBase64: string, mimeType: string): Promise<string> {
+  const response = await relayFetch(`${RELAY_API_BASE}/api/transcribe`, {
     method: "POST",
     cache: "no-store",
-  }, "Deepgram access token is unavailable. Paste a transcript to classify.");
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ audioBase64, mimeType }),
+  }, "Transcription failed. The Relay API is not reachable.");
   if (!response.ok) {
-    throw new Error(
-      `Deepgram access token is unavailable (${response.status}). Paste a transcript to classify.`,
-    );
+    throw new Error(`Transcription failed (${response.status}).`);
   }
   const body: unknown = await response.json();
-  if (!isRecord(body) || typeof body.accessToken !== "string" || body.accessToken.length === 0) {
-    throw new Error("Deepgram access token is unavailable. Paste a transcript to classify.");
+  if (!isRecord(body) || typeof body.transcript !== "string") {
+    throw new Error("Transcription response was missing a transcript.");
   }
-  return body.accessToken;
+  return body.transcript;
 }
 
 export async function classifyLive(transcript: string): Promise<LiveScore> {
