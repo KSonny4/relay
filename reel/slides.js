@@ -96,12 +96,12 @@ window.RELAY_SLIDES = [
     say: [
       '*What’s next.*',
       'Today Relay judges this hackathon’s three questions: Execution, Usefulness and Clarity.',
-      'Next, Relay judges *any spoken words against the criteria you give it.* This hackathon is the first use.'
+      'Next, Relay judges *any spoken words against the criteria you give it.* A corporate meeting is one example. This hackathon is the first use.'
     ],
     show: [
       '*What’s next*',
       'Today: this hackathon.',
-      'Next: *any spoken words, your criteria.*'
+      'Next: *any spoken words.* A meeting.'
     ]
   }
 ];
