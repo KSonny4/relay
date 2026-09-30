@@ -2,7 +2,7 @@
 
 Next.js page for Relay pitch classification. A take has no time limit. It ends when you press stop, or after about 10 seconds with no new words.
 
-While the microphone is open, each finished phrase updates the on-screen score. The recommendation appears after the take is saved.
+While the microphone is open, each finished phrase updates the on-screen score. Scores are shown out of 10. The recommendation appears after the take is saved.
 
 ## Run
 

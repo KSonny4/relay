@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 43123",
-    "test": "node --experimental-strip-types --test lib/take-rules.test.ts",
+    "test": "node --experimental-strip-types --test lib/*.test.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

@@ -20,6 +20,7 @@ import {
   takeEnds,
   type ClassifyPlan,
 } from "@/lib/take-rules";
+import { formatScoreOutOfTen } from "@/lib/score-display";
 import { applyTranscriptPiece, combineTranscript } from "@/lib/transcript";
 
 type Phase = "idle" | "recording" | "classifying" | "done";
@@ -464,7 +465,7 @@ export function RelayPitch() {
                 className="grid grid-cols-1 gap-1 px-4 py-3 text-sm sm:grid-cols-3 sm:items-center"
               >
                 <span className="font-medium text-stone-950">Attempt {session.attempt}</span>
-                <span className="text-stone-700">Score {session.score}</span>
+                <span className="text-stone-700">Score {formatScoreOutOfTen(session.score)}</span>
                 <time dateTime={session.createdAt} className="text-stone-500 sm:text-right">
                   {formatSessionTime(session.createdAt)}
                 </time>
@@ -505,6 +506,17 @@ function AttemptButton({
   );
 }
 
+function ScoreReadout({ score, className }: { score: number; className: string }) {
+  const label = formatScoreOutOfTen(score);
+  const [value, scale] = label.split(" / ");
+  return (
+    <p className={`font-semibold tabular-nums ${className}`} aria-label={label}>
+      <span>{value}</span>
+      <span className="text-[0.42em] font-medium text-stone-400"> / {scale}</span>
+    </p>
+  );
+}
+
 function LiveScorePanel({
   score,
   error,
@@ -519,7 +531,7 @@ function LiveScorePanel({
       <p className="text-sm text-stone-400">Live score</p>
       {score ? (
         <>
-          <p className="mt-2 text-7xl font-semibold tabular-nums sm:text-8xl">{score.score}</p>
+          <ScoreReadout score={score.score} className="mt-2 text-6xl sm:text-7xl" />
           <p className="mt-4 text-xl leading-8">{score.level}</p>
           <p className="mt-3 text-sm text-stone-300">Confidence {score.confidence}</p>
         </>
@@ -544,7 +556,9 @@ function ClassificationCard({ result }: { result: Classification }) {
       <dl className="mt-6 grid gap-5">
         <div>
           <dt className="text-sm text-stone-400">Overall score</dt>
-          <dd className="mt-1 text-5xl font-semibold tabular-nums">{result.score}</dd>
+          <dd className="mt-1">
+            <ScoreReadout score={result.score} className="text-5xl" />
+          </dd>
         </div>
         <div>
           <dt className="text-sm text-stone-400">Level</dt>
