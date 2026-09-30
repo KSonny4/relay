@@ -1,0 +1,490 @@
+import http from "node:http";
+import { randomUUID } from "node:crypto";
+
+export const CORS_ORIGIN = "http://127.0.0.1:43123";
+export const PORT = 43124;
+
+export const PITCH_INSTRUCTIONS =
+  "How well does this pitch explain an idea that helps developers?";
+
+export const PITCH_CRITERIA = [
+  "A developer cannot tell what this is",
+  "The idea is vague",
+  "A developer could understand it with effort",
+  "A developer would understand the idea and why it helps",
+  "A developer would know what to try next",
+];
+
+const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/systemone";
+const DEEPGRAM_GRANT_URL = "https://api.deepgram.com/v1/auth/grant";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+const OPENAI_MODEL = "gpt-4.1-mini";
+const QUESTION_ID = "pitch";
+const BODY_LIMIT = 32 * 1024 * 1024;
+
+export function httpError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
+export function jevTarget(env) {
+  if (env.TYPESAFE_API_KEY) {
+    return {
+      url: TYPESAFE_URL,
+      key: env.TYPESAFE_API_KEY,
+      model: "jev-latest",
+    };
+  }
+  if (env.OPENROUTER_API_KEY) {
+    return {
+      url: OPENROUTER_URL,
+      key: env.OPENROUTER_API_KEY,
+      model: "typesafe/jev-1.13",
+    };
+  }
+  return null;
+}
+
+export function jevRequestBody(transcript, model) {
+  return {
+    state: transcript,
+    model,
+    questions: {
+      [QUESTION_ID]: {
+        type: "score",
+        instructions: PITCH_INSTRUCTIONS,
+        criteria: PITCH_CRITERIA,
+      },
+    },
+  };
+}
+
+export function nearestLevel(score, legend) {
+  const keys = Object.keys(legend)
+    .map((key) => Number(key))
+    .filter((key) => Number.isFinite(key))
+    .sort((a, b) => a - b);
+  if (keys.length === 0 || typeof score !== "number" || Number.isNaN(score)) {
+    return null;
+  }
+  let nearest = keys[0];
+  let best = Math.abs(score - nearest);
+  for (const key of keys) {
+    const dist = Math.abs(score - key);
+    if (dist < best || (dist === best && key > nearest)) {
+      best = dist;
+      nearest = key;
+    }
+  }
+  const text = legend[String(nearest)] ?? legend[nearest];
+  return typeof text === "string" ? text : null;
+}
+
+export function mapScoreAnswer(answer) {
+  if (
+    !answer ||
+    answer.type !== "score" ||
+    typeof answer.score !== "number" ||
+    typeof answer.confidence !== "number" ||
+    !answer.legend ||
+    typeof answer.legend !== "object"
+  ) {
+    throw httpError(502, "Jev score was missing");
+  }
+  const level = nearestLevel(answer.score, answer.legend);
+  if (!level) throw httpError(502, "Jev legend was missing");
+  return { score: answer.score, level, confidence: answer.confidence };
+}
+
+export function firstSentence(text) {
+  const trimmed = String(text ?? "").trim().replace(/\s+/g, " ");
+  if (!trimmed) throw httpError(502, "OpenAI recommendation was empty");
+  const match = trimmed.match(/^[\s\S]+?[.!?]/);
+  return (match ? match[0] : trimmed).trim();
+}
+
+export function storeModeName(databaseUrl) {
+  return databaseUrl ? "postgres" : "memory";
+}
+
+export function databaseUrlFrom(env) {
+  const value = env?.DATABASE_URL;
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  return value;
+}
+
+export function listenPort(env = {}) {
+  const raw = env.PORT;
+  if (raw == null || raw === "") return PORT;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) return PORT;
+  return parsed;
+}
+
+export function postgresOptions(databaseUrl) {
+  let host = "";
+  try {
+    host = new URL(databaseUrl).hostname;
+  } catch {
+    host = "";
+  }
+  const local = host === "localhost" || host === "127.0.0.1";
+  return {
+    connectionString: databaseUrl,
+    ssl: local ? undefined : { rejectUnauthorized: false },
+  };
+}
+
+export function createMemoryStore() {
+  const rows = [];
+  let seq = 0;
+  return {
+    rows,
+    async insert(row) {
+      rows.push({ ...row, _seq: ++seq });
+    },
+    async list() {
+      return rows
+        .slice()
+        .sort((a, b) => {
+          if (a.createdAt === b.createdAt) return b._seq - a._seq;
+          return a.createdAt < b.createdAt ? 1 : -1;
+        })
+        .map(publicSession);
+    },
+  };
+}
+
+export function createPostgresStore(pool) {
+  return {
+    async init() {
+      await pool.query(`CREATE TABLE IF NOT EXISTS sessions (
+        id text PRIMARY KEY,
+        attempt integer NOT NULL,
+        transcript text NOT NULL,
+        audio bytea,
+        mime_type text,
+        score double precision NOT NULL,
+        level text NOT NULL,
+        confidence double precision NOT NULL,
+        recommendation text NOT NULL,
+        created_at timestamptz NOT NULL
+      )`);
+    },
+    async insert(row) {
+      await pool.query(
+        `INSERT INTO sessions
+          (id, attempt, transcript, audio, mime_type, score, level, confidence, recommendation, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          row.id,
+          row.attempt,
+          row.transcript,
+          row.audio,
+          row.mimeType,
+          row.score,
+          row.level,
+          row.confidence,
+          row.recommendation,
+          row.createdAt,
+        ],
+      );
+    },
+    async list() {
+      const result = await pool.query(
+        `SELECT id, attempt, score, level, confidence, recommendation, created_at
+         FROM sessions
+         ORDER BY created_at DESC`,
+      );
+      return result.rows.map((row) =>
+        publicSession({
+          id: row.id,
+          attempt: row.attempt,
+          score: row.score,
+          level: row.level,
+          confidence: row.confidence,
+          recommendation: row.recommendation,
+          createdAt:
+            row.created_at instanceof Date
+              ? row.created_at.toISOString()
+              : new Date(row.created_at).toISOString(),
+        }),
+      );
+    },
+  };
+}
+
+function publicSession(row) {
+  return {
+    id: row.id,
+    attempt: row.attempt,
+    score: row.score,
+    level: row.level,
+    confidence: row.confidence,
+    recommendation: row.recommendation,
+    createdAt: row.createdAt,
+  };
+}
+
+function createdResponse(row) {
+  return {
+    id: row.id,
+    attempt: row.attempt,
+    score: row.score,
+    level: row.level,
+    confidence: row.confidence,
+    recommendation: row.recommendation,
+  };
+}
+
+function writeCors(res) {
+  res.setHeader("access-control-allow-origin", CORS_ORIGIN);
+  res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
+  res.setHeader("access-control-allow-headers", "Content-Type");
+  res.setHeader("vary", "Origin");
+}
+
+function send(res, status, body) {
+  writeCors(res);
+  if (status === 204) {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+  const payload = JSON.stringify(body);
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "content-length": Buffer.byteLength(payload),
+  });
+  res.end(payload);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > BODY_LIMIT) {
+        reject(httpError(413, "Payload too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+function decodeAudio(audioBase64) {
+  if (audioBase64 == null) return null;
+  if (typeof audioBase64 !== "string") {
+    throw httpError(400, "audioBase64 must be a string");
+  }
+  if (audioBase64.length === 0) return null;
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(audioBase64) || audioBase64.length % 4 !== 0) {
+    throw httpError(400, "audioBase64 is not valid base64");
+  }
+  return Buffer.from(audioBase64, "base64");
+}
+
+async function postJson(fetchImpl, url, headers, body) {
+  const response = await fetchImpl(url, {
+    method: "POST",
+    headers: {
+      ...headers,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  let json = null;
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = null;
+    }
+  }
+  return { ok: response.ok, status: response.status, json };
+}
+
+async function callJev(fetchImpl, env, transcript) {
+  const target = jevTarget(env);
+  if (!target) {
+    throw httpError(
+      503,
+      "Jev is not configured. Set TYPESAFE_API_KEY or OPENROUTER_API_KEY.",
+    );
+  }
+  const jev = await postJson(
+    fetchImpl,
+    target.url,
+    { authorization: `Bearer ${target.key}` },
+    jevRequestBody(transcript, target.model),
+  );
+  if (!jev.ok || !jev.json?.answers) {
+    throw httpError(502, "Jev request failed");
+  }
+  const answers = Object.values(jev.json.answers);
+  if (answers.length !== 1) throw httpError(502, "Jev score was missing");
+  return mapScoreAnswer(answers[0]);
+}
+
+async function scoreTranscript(fetchImpl, env, transcript) {
+  if (!env.OPENAI_API_KEY) {
+    throw httpError(503, "OpenAI is not configured. Set OPENAI_API_KEY.");
+  }
+  const mapped = await callJev(fetchImpl, env, transcript);
+
+  const openai = await postJson(
+    fetchImpl,
+    OPENAI_URL,
+    { authorization: `Bearer ${env.OPENAI_API_KEY}` },
+    {
+      model: OPENAI_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Reply with one sentence: the next improvement for this developer-facing pitch. No other prose.",
+        },
+        { role: "user", content: transcript },
+      ],
+    },
+  );
+  const content = openai.json?.choices?.[0]?.message?.content;
+  if (!openai.ok || typeof content !== "string") {
+    throw httpError(502, "OpenAI request failed");
+  }
+
+  return { ...mapped, recommendation: firstSentence(content) };
+}
+
+async function parseJsonBody(req) {
+  const raw = await readBody(req);
+  let body;
+  try {
+    body = JSON.parse(raw.toString("utf8") || "");
+  } catch {
+    throw httpError(400, "Request body must be JSON");
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw httpError(400, "Request body must be a JSON object");
+  }
+  return body;
+}
+
+async function handleClassify(req, res, { fetchImpl, env }) {
+  const body = await parseJsonBody(req);
+  if (typeof body.transcript !== "string") {
+    throw httpError(400, "transcript must be a string");
+  }
+  const mapped = await callJev(fetchImpl, env, body.transcript);
+  send(res, 200, {
+    score: mapped.score,
+    level: mapped.level,
+    confidence: mapped.confidence,
+  });
+}
+
+async function handleSessionsPost(req, res, { fetchImpl, store, env }) {
+  const body = await parseJsonBody(req);
+  if (body.attempt !== 1 && body.attempt !== 2) {
+    throw httpError(400, "attempt must be 1 or 2");
+  }
+  if (typeof body.transcript !== "string") {
+    throw httpError(400, "transcript must be a string");
+  }
+  if (body.mimeType != null && typeof body.mimeType !== "string") {
+    throw httpError(400, "mimeType must be a string");
+  }
+
+  const audio = decodeAudio(body.audioBase64);
+  const scored = await scoreTranscript(fetchImpl, env, body.transcript);
+  const row = {
+    id: randomUUID(),
+    attempt: body.attempt,
+    transcript: body.transcript,
+    audio,
+    mimeType: body.mimeType ?? null,
+    score: scored.score,
+    level: scored.level,
+    confidence: scored.confidence,
+    recommendation: scored.recommendation,
+    createdAt: new Date().toISOString(),
+  };
+  await store.insert(row);
+  send(res, 200, createdResponse(row));
+}
+
+async function handleDeepgram(res, { fetchImpl, env }) {
+  const apiKey = env.DEEPGRAM_API_KEY;
+  if (!apiKey) {
+    throw httpError(503, "Deepgram is not configured. Set DEEPGRAM_API_KEY.");
+  }
+  const response = await fetchImpl(DEEPGRAM_GRANT_URL, {
+    method: "POST",
+    headers: { authorization: `Token ${apiKey}` },
+  });
+  const text = await response.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  const accessToken = json?.access_token;
+  if (!response.ok || typeof accessToken !== "string" || accessToken.length === 0) {
+    throw httpError(502, "Deepgram token request failed");
+  }
+  if (accessToken === apiKey) {
+    throw httpError(502, "Deepgram token request failed");
+  }
+  send(res, 200, { accessToken });
+}
+
+async function handle(req, res, options) {
+  const url = new URL(req.url || "/", "http://127.0.0.1");
+  if (req.method === "OPTIONS") {
+    send(res, 204);
+    return;
+  }
+  if (req.method === "GET" && url.pathname === "/api/sessions") {
+    const sessions = await options.store.list();
+    send(res, 200, { sessions });
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/deepgram/token") {
+    await handleDeepgram(res, options);
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/classify") {
+    await handleClassify(req, res, options);
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/sessions") {
+    await handleSessionsPost(req, res, options);
+    return;
+  }
+  send(res, 404, { error: "Not found" });
+}
+
+export function createServer({
+  fetchImpl = globalThis.fetch,
+  store,
+  env = process.env,
+} = {}) {
+  if (!store) throw new Error("store is required");
+  return http.createServer((req, res) => {
+    handle(req, res, { fetchImpl, store, env }).catch((err) => {
+      if (res.headersSent || res.writableEnded) return;
+      const status = err.status || 500;
+      const message = status === 500 ? "Internal error" : err.message;
+      send(res, status, { error: message });
+    });
+  });
+}
