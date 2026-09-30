@@ -4,15 +4,40 @@ import { randomUUID } from "node:crypto";
 export const CORS_ORIGIN = "http://127.0.0.1:43123";
 export const PORT = 43124;
 
-export const PITCH_INSTRUCTIONS =
-  "How well does this pitch explain an idea that helps developers?";
-
-export const PITCH_CRITERIA = [
-  "A developer cannot tell what this is",
-  "The idea is vague",
-  "A developer could understand it with effort",
-  "A developer would understand the idea and why it helps",
-  "A developer would know what to try next",
+export const SCORE_QUESTIONS = [
+  {
+    id: "execution",
+    instructions: "How well does this pitch show what was actually built?",
+    criteria: [
+      "A listener cannot tell what was built",
+      "The pitch mentions a build, but not what it does",
+      "A listener could tell what was built with effort",
+      "A listener can tell what was built",
+      "A listener can tell what was built and that it works",
+    ],
+  },
+  {
+    id: "usefulness",
+    instructions: "Is the problem real, and would someone use this?",
+    criteria: [
+      "The problem does not sound real",
+      "The problem is too vague to use",
+      "Someone might use this if they already understood the problem",
+      "The problem is real, and someone would use this",
+      "The problem is real, and it is clear who would use this",
+    ],
+  },
+  {
+    id: "clarity",
+    instructions: "Can we understand what this is and why it matters?",
+    criteria: [
+      "A listener cannot tell what this is",
+      "What this is, and why it matters, is vague",
+      "A listener could understand it with effort",
+      "A listener understands what this is and why it matters",
+      "A listener knows what this is, why it matters, and what to try next",
+    ],
+  },
 ];
 
 const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
@@ -20,7 +45,6 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/systemone";
 const DEEPGRAM_GRANT_URL = "https://api.deepgram.com/v1/auth/grant";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODEL = "gpt-4.1-mini";
-const QUESTION_ID = "pitch";
 const BODY_LIMIT = 32 * 1024 * 1024;
 
 export function httpError(status, message) {
@@ -48,17 +72,15 @@ export function jevTarget(env) {
 }
 
 export function jevRequestBody(transcript, model) {
-  return {
-    state: transcript,
-    model,
-    questions: {
-      [QUESTION_ID]: {
-        type: "score",
-        instructions: PITCH_INSTRUCTIONS,
-        criteria: PITCH_CRITERIA,
-      },
-    },
-  };
+  const questions = {};
+  for (const question of SCORE_QUESTIONS) {
+    questions[question.id] = {
+      type: "score",
+      instructions: question.instructions,
+      criteria: question.criteria,
+    };
+  }
+  return { state: transcript, model, questions };
 }
 
 export function nearestLevel(score, legend) {
@@ -82,8 +104,11 @@ export function nearestLevel(score, legend) {
   return typeof text === "string" ? text : null;
 }
 
-export function visibleScore(jevScore) {
-  return Math.round(jevScore * 2.5 * 10) / 10;
+export function criterionInteger(jevScore) {
+  const value = Math.round(jevScore + 1);
+  if (value < 1) return 1;
+  if (value > 5) return 5;
+  return value;
 }
 
 export function mapScoreAnswer(answer) {
@@ -99,7 +124,31 @@ export function mapScoreAnswer(answer) {
   }
   const level = nearestLevel(answer.score, answer.legend);
   if (!level) throw httpError(502, "Jev legend was missing");
-  return { score: visibleScore(answer.score), level, confidence: answer.confidence };
+  return { value: criterionInteger(answer.score), level, confidence: answer.confidence };
+}
+
+export function mapMarks(answers) {
+  const parts = {};
+  for (const question of SCORE_QUESTIONS) {
+    const answer = answers?.[question.id];
+    if (!answer) throw httpError(502, "Jev score was missing");
+    parts[question.id] = mapScoreAnswer(answer);
+  }
+  const execution = parts.execution.value;
+  const usefulness = parts.usefulness.value;
+  const clarity = parts.clarity.value;
+  let weakest = "execution";
+  for (const name of ["usefulness", "clarity"]) {
+    if (parts[name].value < parts[weakest].value) weakest = name;
+  }
+  return {
+    score: execution * 2 + usefulness + clarity,
+    execution,
+    usefulness,
+    clarity,
+    level: parts[weakest].level,
+    confidence: parts[weakest].confidence,
+  };
 }
 
 export function firstSentence(text) {
@@ -180,12 +229,15 @@ export function createPostgresStore(pool) {
         recommendation text NOT NULL,
         created_at timestamptz NOT NULL
       )`);
+      await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS execution integer`);
+      await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS usefulness integer`);
+      await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS clarity integer`);
     },
     async insert(row) {
       await pool.query(
         `INSERT INTO sessions
-          (id, attempt, transcript, audio, mime_type, score, level, confidence, recommendation, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          (id, attempt, transcript, audio, mime_type, score, level, confidence, recommendation, created_at, execution, usefulness, clarity)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           row.id,
           row.attempt,
@@ -197,12 +249,15 @@ export function createPostgresStore(pool) {
           row.confidence,
           row.recommendation,
           row.createdAt,
+          row.execution,
+          row.usefulness,
+          row.clarity,
         ],
       );
     },
     async list() {
       const result = await pool.query(
-        `SELECT id, attempt, score, level, confidence, recommendation, created_at
+        `SELECT id, attempt, score, level, confidence, recommendation, created_at, execution, usefulness, clarity
          FROM sessions
          ORDER BY created_at DESC`,
       );
@@ -210,7 +265,7 @@ export function createPostgresStore(pool) {
     },
     async get(id) {
       const result = await pool.query(
-        `SELECT id, attempt, transcript, score, level, confidence, recommendation, created_at
+        `SELECT id, attempt, transcript, score, level, confidence, recommendation, created_at, execution, usefulness, clarity
          FROM sessions
          WHERE id = $1`,
         [id],
@@ -227,6 +282,9 @@ function sessionFromPostgres(row) {
     attempt: row.attempt,
     transcript: row.transcript,
     score: row.score,
+    execution: row.execution,
+    usefulness: row.usefulness,
+    clarity: row.clarity,
     level: row.level,
     confidence: row.confidence,
     recommendation: row.recommendation,
@@ -237,11 +295,20 @@ function sessionFromPostgres(row) {
   };
 }
 
+function marksFields(row) {
+  const fields = {};
+  for (const name of ["execution", "usefulness", "clarity"]) {
+    if (Number.isInteger(row[name])) fields[name] = row[name];
+  }
+  return fields;
+}
+
 function publicSession(row) {
   return {
     id: row.id,
     attempt: row.attempt,
     score: row.score,
+    ...marksFields(row),
     level: row.level,
     confidence: row.confidence,
     recommendation: row.recommendation,
@@ -255,6 +322,7 @@ function recording(row) {
     attempt: row.attempt,
     transcript: row.transcript,
     score: row.score,
+    ...marksFields(row),
     level: row.level,
     confidence: row.confidence,
     recommendation: row.recommendation,
@@ -267,6 +335,7 @@ function createdResponse(row) {
     id: row.id,
     attempt: row.attempt,
     score: row.score,
+    ...marksFields(row),
     level: row.level,
     confidence: row.confidence,
     recommendation: row.recommendation,
@@ -363,9 +432,7 @@ async function callJev(fetchImpl, env, transcript) {
   if (!jev.ok || !jev.json?.answers) {
     throw httpError(502, "Jev request failed");
   }
-  const answers = Object.values(jev.json.answers);
-  if (answers.length !== 1) throw httpError(502, "Jev score was missing");
-  return mapScoreAnswer(answers[0]);
+  return mapMarks(jev.json.answers);
 }
 
 async function scoreTranscript(fetchImpl, env, transcript) {
@@ -420,6 +487,9 @@ async function handleClassify(req, res, { fetchImpl, env }) {
   const mapped = await callJev(fetchImpl, env, body.transcript);
   send(res, 200, {
     score: mapped.score,
+    execution: mapped.execution,
+    usefulness: mapped.usefulness,
+    clarity: mapped.clarity,
     level: mapped.level,
     confidence: mapped.confidence,
   });
@@ -446,6 +516,9 @@ async function handleSessionsPost(req, res, { fetchImpl, store, env }) {
     audio,
     mimeType: body.mimeType ?? null,
     score: scored.score,
+    execution: scored.execution,
+    usefulness: scored.usefulness,
+    clarity: scored.clarity,
     level: scored.level,
     confidence: scored.confidence,
     recommendation: scored.recommendation,

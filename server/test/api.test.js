@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  PITCH_CRITERIA,
-  PITCH_INSTRUCTIONS,
+  SCORE_QUESTIONS,
+  criterionInteger,
   createMemoryStore,
   createPostgresStore,
   createServer,
   databaseUrlFrom,
   firstSentence,
   jevTarget,
-  mapScoreAnswer,
-  visibleScore,
+  mapMarks,
   listenPort,
   nearestLevel,
   postgresOptions,
@@ -18,25 +17,41 @@ import {
 } from "../src/server.js";
 import { applyEnvFile, loadSecrets } from "../src/env.js";
 
-const LEGEND = {
-  0: PITCH_CRITERIA[0],
-  1: PITCH_CRITERIA[1],
-  2: PITCH_CRITERIA[2],
-  3: PITCH_CRITERIA[3],
-  4: PITCH_CRITERIA[4],
-};
+function legendFor(question) {
+  return Object.fromEntries(question.criteria.map((text, index) => [index, text]));
+}
 
-function jevResponse(score = 3.2, confidence = 0.81) {
+const EXECUTION = SCORE_QUESTIONS[0];
+const USEFULNESS = SCORE_QUESTIONS[1];
+const CLARITY = SCORE_QUESTIONS[2];
+
+function scoreAnswer(question, score, confidence) {
+  return {
+    type: "score",
+    score,
+    legend: legendFor(question),
+    probabilities: { 0: 0, 1: 0, 2: 0.1, 3: 0.7, 4: 0.2 },
+    confidence,
+  };
+}
+
+function jevResponse(scores = {}, confidence = 0.81) {
+  const values = {
+    execution: scores.execution ?? 3.2,
+    usefulness: scores.usefulness ?? 3.2,
+    clarity: scores.clarity ?? 3.2,
+  };
+  const confidences = {
+    execution: scores.executionConfidence ?? confidence,
+    usefulness: scores.usefulnessConfidence ?? confidence,
+    clarity: scores.clarityConfidence ?? confidence,
+  };
   return {
     model: "jev-1.13.0",
     answers: {
-      pitch: {
-        type: "score",
-        score,
-        legend: LEGEND,
-        probabilities: { 0: 0, 1: 0, 2: 0.1, 3: 0.7, 4: 0.2 },
-        confidence,
-      },
+      execution: scoreAnswer(EXECUTION, values.execution, confidences.execution),
+      usefulness: scoreAnswer(USEFULNESS, values.usefulness, confidences.usefulness),
+      clarity: scoreAnswer(CLARITY, values.clarity, confidences.clarity),
     },
     usage: { input_tokens: 10, output_tokens: 2 },
   };
@@ -115,11 +130,16 @@ function assertScoreQuestion(body, model, transcript) {
   assert.equal(body.model, model);
   assert.equal(body.state, transcript);
   assert.deepEqual(Object.keys(body).sort(), ["model", "questions", "state"]);
+  assert.deepEqual(Object.keys(body.questions), ["execution", "usefulness", "clarity"]);
+  for (const question of SCORE_QUESTIONS) {
+    const sent = body.questions[question.id];
+    assert.equal(sent.type, "score");
+    assert.equal(sent.instructions, question.instructions);
+    assert.equal(sent.criteria.length, 5);
+    assert.deepEqual(sent.criteria, question.criteria);
+  }
   const questions = Object.values(body.questions);
-  assert.equal(questions.length, 1);
-  assert.equal(questions[0].type, "score");
-  assert.equal(questions[0].instructions, PITCH_INSTRUCTIONS);
-  assert.deepEqual(questions[0].criteria, PITCH_CRITERIA);
+  assert.equal(questions.length, 3);
   assert.equal(
     questions.filter((q) => q.type === "choice" || q.type === "noul").length,
     0,
@@ -132,7 +152,7 @@ const readyEnv = {
   DEEPGRAM_API_KEY: "dg-test-key",
 };
 
-test("TYPESAFE_API_KEY posts one jev-latest score question, then OpenAI, then stores", async () => {
+test("TYPESAFE_API_KEY posts three jev-latest score questions, then OpenAI, then stores", async () => {
   const fetchMock = mockFetch();
   const transcript = "A CLI that explains a diff before you commit.";
   await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base, store }) => {
@@ -145,8 +165,11 @@ test("TYPESAFE_API_KEY posts one jev-latest score question, then OpenAI, then st
     assert.equal(created.status, 200);
     assert.equal(created.headers.get("access-control-allow-origin"), "http://127.0.0.1:43123");
     assert.equal(created.json.attempt, 1);
-    assert.equal(created.json.score, 8);
-    assert.equal(created.json.level, PITCH_CRITERIA[3]);
+    assert.equal(created.json.score, 16);
+    assert.equal(created.json.execution, 4);
+    assert.equal(created.json.usefulness, 4);
+    assert.equal(created.json.clarity, 4);
+    assert.equal(created.json.level, EXECUTION.criteria[3]);
     assert.equal(created.json.confidence, 0.81);
     assert.equal(created.json.recommendation, "Name the first command a developer should run.");
     assert.equal(typeof created.json.id, "string");
@@ -173,6 +196,10 @@ test("TYPESAFE_API_KEY posts one jev-latest score question, then OpenAI, then st
     assert.equal(listed.status, 200);
     assert.equal(listed.json.sessions.length, 1);
     assert.equal(listed.json.sessions[0].id, created.json.id);
+    assert.equal(listed.json.sessions[0].execution, 4);
+    assert.equal(listed.json.sessions[0].usefulness, 4);
+    assert.equal(listed.json.sessions[0].clarity, 4);
+    assert.equal(listed.json.sessions[0].score, 16);
     assert.equal(typeof listed.json.sessions[0].createdAt, "string");
     assert.equal(listed.text.includes("SECRET-AUDIO-BYTES"), false);
     assert.equal("audio" in listed.json.sessions[0], false);
@@ -255,6 +282,10 @@ test("attempt 3 is stored and attempt 0 is rejected", async () => {
     assert.equal(one.status, 200);
     assert.equal(one.json.transcript, "third take");
     assert.equal(one.json.attempt, 3);
+    assert.equal(one.json.score, 16);
+    assert.equal(one.json.execution, 4);
+    assert.equal(one.json.usefulness, 4);
+    assert.equal(one.json.clarity, 4);
     assert.equal(one.json.recommendation, "Name the first command a developer should run.");
     assert.equal(typeof one.json.createdAt, "string");
     assert.equal("audio" in one.json, false);
@@ -264,6 +295,29 @@ test("attempt 3 is stored and attempt 0 is rejected", async () => {
     const missing = await request(base, "GET", "/api/sessions/missing");
     assert.equal(missing.status, 404);
   });
+});
+
+test("older rows that only stored one score omit the three marks", async () => {
+  const store = createMemoryStore();
+  await store.insert({
+    id: "old",
+    attempt: 1,
+    transcript: "old pitch",
+    score: 7.8,
+    level: "A listener can tell what was built",
+    confidence: 0.5,
+    recommendation: "Be specific.",
+    createdAt: "2026-09-30T00:00:00.000Z",
+  });
+  const listed = await store.list();
+  assert.equal(listed[0].score, 7.8);
+  assert.equal("execution" in listed[0], false);
+  assert.equal("usefulness" in listed[0], false);
+  assert.equal("clarity" in listed[0], false);
+  const one = await store.get("old");
+  assert.equal(one.transcript, "old pitch");
+  assert.equal("execution" in one, false);
+  assert.equal("audio" in one, false);
 });
 
 test("sessions are newest first and omit audio bytes", async () => {
@@ -314,43 +368,66 @@ test("Deepgram without a key is 503 and does not call the network", async () => 
   });
 });
 
-test("a Jev score of 3.1 leaves the API as 7.8", async () => {
-  const fetchMock = mockFetch({ jev: jevResponse(3.1, 0.64) });
+test("Jev 3.1 becomes 4 and the total is execution times two plus the other marks", async () => {
+  const jev = jevResponse({
+    execution: 3.1,
+    usefulness: 0,
+    clarity: 4,
+    executionConfidence: 0.64,
+    usefulnessConfidence: 0.9,
+    clarityConfidence: 0.2,
+  });
+  const fetchMock = mockFetch({ jev });
   await withServer({ fetchImpl: fetchMock.impl, env: readyEnv }, async ({ base, store }) => {
     const classified = await request(base, "POST", "/api/classify", {
       transcript: "A pitch that is mostly clear.",
     });
     assert.equal(classified.status, 200);
-    assert.equal(classified.json.score, 7.8);
-    assert.equal(classified.json.level, PITCH_CRITERIA[3]);
-    assert.equal(classified.json.confidence, 0.64);
+    assert.equal(classified.json.execution, 4);
+    assert.equal(classified.json.usefulness, 1);
+    assert.equal(classified.json.clarity, 5);
+    assert.equal(classified.json.score, 14);
+    assert.equal(classified.json.level, USEFULNESS.criteria[0]);
+    assert.equal(classified.json.confidence, 0.9);
+    assert.equal("recommendation" in classified.json, false);
 
     const created = await request(base, "POST", "/api/sessions", {
       attempt: 1,
       transcript: "A pitch that is mostly clear.",
     });
-    assert.equal(created.json.score, 7.8);
-    assert.equal(created.json.level, PITCH_CRITERIA[3]);
-    assert.equal(store.rows[0].score, 7.8);
+    assert.equal(created.json.execution, 4);
+    assert.equal(created.json.usefulness, 1);
+    assert.equal(created.json.clarity, 5);
+    assert.equal(created.json.score, 14);
+    assert.equal(created.json.level, USEFULNESS.criteria[0]);
+    assert.equal(store.rows[0].score, 14);
     const jevBodies = fetchMock.calls
       .filter((call) => call.url.endsWith("/v1/systemone"))
       .map((call) => JSON.parse(call.init.body));
     assert.equal(jevBodies.length, 2);
     for (const body of jevBodies) assertScoreQuestion(body, "jev-latest", "A pitch that is mostly clear.");
   });
-  assert.equal(visibleScore(3.1), 7.8);
-  assert.equal(mapScoreAnswer({
-    type: "score",
-    score: 3.1,
-    confidence: 0.64,
-    legend: LEGEND,
-  }).score, 7.8);
+  assert.equal(criterionInteger(3.1), 4);
+  assert.equal(criterionInteger(0), 1);
+  assert.equal(criterionInteger(4), 5);
+  assert.deepEqual(
+    mapMarks(jev.answers),
+    {
+      score: 14,
+      execution: 4,
+      usefulness: 1,
+      clarity: 5,
+      level: USEFULNESS.criteria[0],
+      confidence: 0.9,
+    },
+  );
 });
 
 test("nearest legend level and one-sentence recommendation", () => {
-  assert.equal(nearestLevel(3.2, LEGEND), PITCH_CRITERIA[3]);
-  assert.equal(nearestLevel(2.5, LEGEND), PITCH_CRITERIA[3]);
-  assert.equal(nearestLevel(0.1, LEGEND), PITCH_CRITERIA[0]);
+  const legend = legendFor(EXECUTION);
+  assert.equal(nearestLevel(3.2, legend), EXECUTION.criteria[3]);
+  assert.equal(nearestLevel(2.5, legend), EXECUTION.criteria[3]);
+  assert.equal(nearestLevel(0.1, legend), EXECUTION.criteria[0]);
   assert.equal(
     firstSentence("Cut the intro. Then add a command."),
     "Cut the intro.",
@@ -372,8 +449,11 @@ test("postgres list query does not select audio and non-local urls use ssl", asy
     transcript: "pitch",
     audio: Buffer.from("bytes"),
     mimeType: "audio/webm",
-    score: 1,
-    level: PITCH_CRITERIA[1],
+    score: 14,
+    execution: 4,
+    usefulness: 1,
+    clarity: 5,
+    level: USEFULNESS.criteria[0],
     confidence: 0.5,
     recommendation: "Be specific.",
     createdAt: "2026-09-30T00:00:00.000Z",
@@ -383,11 +463,19 @@ test("postgres list query does not select audio and non-local urls use ssl", asy
   assert.equal(Buffer.isBuffer(queries[0].params[3]), true);
   assert.match(queries[1].text, /SELECT/);
   assert.doesNotMatch(queries[1].text, /\baudio\b/);
+  assert.match(queries[1].text, /execution/);
+  assert.match(queries[1].text, /usefulness/);
+  assert.match(queries[1].text, /clarity/);
   assert.match(queries[1].text, /ORDER BY created_at DESC/);
   await store.get("s1");
   assert.match(queries[2].text, /SELECT/);
   assert.match(queries[2].text, /transcript/);
+  assert.match(queries[2].text, /execution/);
+  assert.match(queries[2].text, /usefulness/);
+  assert.match(queries[2].text, /clarity/);
   assert.doesNotMatch(queries[2].text, /\baudio\b/);
+  await store.init();
+  assert.match(queries.map((query) => query.text).join("\n"), /ADD COLUMN IF NOT EXISTS execution/);
 
   const remote = postgresOptions("postgres://user:s3cret@dpg-example.render.com/relay");
   assert.deepEqual(remote.ssl, { rejectUnauthorized: false });
@@ -420,8 +508,11 @@ test("POST /api/classify calls Jev once and does not call OpenAI or store a sess
       const res = await request(base, "POST", "/api/classify", { transcript });
       assert.equal(res.status, 200);
       assert.deepEqual(res.json, {
-        score: 8,
-        level: PITCH_CRITERIA[3],
+        score: 16,
+        execution: 4,
+        usefulness: 4,
+        clarity: 4,
+        level: EXECUTION.criteria[3],
         confidence: 0.81,
       });
       assert.equal(fetchMock.calls.length, 1);
