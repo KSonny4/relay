@@ -12,14 +12,14 @@
     --accent: #ffc53d;
     --live: #ff4d4d;
     --ok: #4ade80;
-    --panel: #161616;
-    --line: #2e2e2e;
+    /* One size unit that fits 16:9 by height and narrower screens by width. */
+    --u: min(1vh, 0.58vw);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; }
   body {
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-size: clamp(18px, 2.6vmin, 40px);
+    font-size: calc(var(--u) * 3);
     line-height: 1.15;
     -webkit-font-smoothing: antialiased;
   }
@@ -31,179 +31,134 @@
 
   .scene {
     position: fixed; inset: 0;
-    display: flex; flex-direction: column; justify-content: center;
-    padding: 6vmin 8vw;
-    gap: 3vmin;
+    display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+    padding: calc(var(--u) * 8) 7vw;
+    gap: calc(var(--u) * 2.6);
     opacity: 0; visibility: hidden;
-    transition: opacity .45s ease, visibility 0s linear .45s;
+    transition: opacity .4s ease, visibility 0s linear .4s;
   }
-  .scene.active { opacity: 1; visibility: visible; transition: opacity .45s ease; }
+  .scene.active { opacity: 1; visibility: visible; transition: opacity .4s ease; }
 
   [data-at] {
-    opacity: 0; transform: translateY(2.5vmin);
-    transition: opacity .5s ease, transform .5s ease;
+    display: none;
+    opacity: 0; transform: translateY(calc(var(--u) * 2.5));
+    transition: opacity .45s ease, transform .45s ease, font-size .45s ease, color .45s ease;
   }
+  [data-at].shown { display: block; }
   [data-at].on { opacity: 1; transform: none; }
 
-  .xl { font-size: clamp(64px, 17vmin, 260px); font-weight: 900; letter-spacing: -0.04em; line-height: .95; }
-  .l  { font-size: clamp(40px, 8.5vmin, 140px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.02; }
-  .m  { font-size: clamp(28px, 5.4vmin, 84px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
-  .s  { font-size: clamp(20px, 3.4vmin, 52px); font-weight: 600; line-height: 1.2; }
-  .muted { color: var(--muted); }
+  .line {
+    font-size: calc(var(--u) * 9.2);
+    font-weight: 800; letter-spacing: -0.025em; line-height: 1.06;
+    color: var(--fg); max-width: 100%;
+    text-wrap: balance;
+  }
+  .line.past {
+    font-size: calc(var(--u) * 4.2);
+    font-weight: 700; letter-spacing: -0.01em; line-height: 1.12;
+    color: var(--muted);
+  }
+  .line.past .accent { color: inherit; }
   .accent { color: var(--accent); }
-  .kicker { font-size: clamp(20px, 3.4vmin, 52px); font-weight: 700; color: var(--accent); letter-spacing: .12em; text-transform: uppercase; }
-  .quote { border-left: 1.2vmin solid var(--accent); padding-left: 3vmin; }
 
-  /* Live score */
-  .live-grid { display: grid; grid-template-columns: 1fr auto; gap: 5vmin; align-items: center; }
-  .transcript {
-    font-size: clamp(24px, 4.4vmin, 68px); font-weight: 600; line-height: 1.3;
-    min-height: 5.2em; color: var(--fg);
+  .lockup { display: grid; gap: calc(var(--u) * 1); margin-bottom: calc(var(--u) * 2); }
+  .lockup .name { font-size: calc(var(--u) * 4.6); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--fg); }
+  .lockup .brand { font-size: calc(var(--u) * 17); font-weight: 900; letter-spacing: -0.045em; line-height: .9; color: var(--accent); }
+
+  .beat {
+    font-size: calc(var(--u) * 14);
+    font-weight: 900; letter-spacing: -0.04em; line-height: .98;
+    display: none; align-items: center; gap: calc(var(--u) * 3);
   }
-  .transcript .caret { display: inline-block; width: .5em; height: 1em; background: var(--accent); vertical-align: -0.12em; margin-left: .1em; }
-  .scorebox { text-align: right; display: grid; gap: 1.5vmin; justify-items: end; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 1.4vmin;
-    border: 3px solid var(--live); color: var(--fg); border-radius: 999px;
-    padding: .8vmin 2.4vmin; font-weight: 800;
+  .beat.shown { display: flex; }
+  .beat.stop { color: var(--accent); }
+  .beat .rec {
+    width: calc(var(--u) * 5); height: calc(var(--u) * 5);
+    border-radius: 50%; background: var(--live); flex: none;
+    animation: pulse 1s ease-in-out infinite;
+    transition: border-radius .3s ease;
   }
-  .badge .dot { width: 2vmin; height: 2vmin; min-width: 12px; min-height: 12px; border-radius: 50%; background: var(--live); animation: pulse 1s ease-in-out infinite; }
-  .badge.locked { border-color: var(--ok); color: var(--ok); }
-  .badge.locked .dot { background: var(--ok); animation: none; border-radius: 3px; }
-  body.paused .dot { animation-play-state: paused; }
+  .scene:has(.beat.stop.on) .rec { animation: none; border-radius: 12%; }
+  body.paused .rec { animation-play-state: paused; }
   @keyframes pulse { 50% { opacity: .25; } }
+  .underline { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: .08em; text-underline-offset: .12em; }
 
-  .score-row { display: flex; align-items: baseline; gap: 3vmin; flex-wrap: wrap; }
-  .score-num { font-size: clamp(90px, 24vmin, 360px); font-weight: 900; letter-spacing: -0.05em; line-height: .9; color: var(--accent); font-variant-numeric: tabular-nums; }
-  .score-of { font-size: clamp(36px, 8vmin, 120px); font-weight: 800; color: var(--muted); }
-
-  /* Saved */
-  .rows { display: grid; gap: 2vmin; }
-  .row {
-    display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 3vmin;
-    background: var(--panel); border: 2px solid var(--line); border-radius: 2vmin; padding: 2.4vmin 3.2vmin;
+  #corner {
+    position: fixed; left: 7vw; bottom: calc(var(--u) * 3.2); z-index: 5;
+    font-size: calc(var(--u) * 2.8); font-weight: 800; letter-spacing: .04em;
+    color: var(--muted); opacity: 0; transition: opacity .4s ease;
   }
-  .row .tick { color: var(--ok); font-weight: 900; }
-
-  /* Product frame */
-  .app {
-    background: #f7f7f7; color: #0a0a0a; border-radius: 2.4vmin; overflow: hidden;
-    box-shadow: 0 0 0 .6vmin var(--accent);
-  }
-  .app-bar {
-    display: flex; justify-content: space-between; align-items: center; gap: 2vmin; flex-wrap: wrap;
-    padding: 2vmin 3.2vmin; background: #0a0a0a; color: var(--fg); font-weight: 800;
-  }
-  .app-bar .lock { color: var(--ok); }
-  .app-body { padding: 3.2vmin 3.6vmin; display: grid; gap: 2vmin; }
-  .app .score-num { color: #0a0a0a; font-size: clamp(80px, 19vmin, 300px); }
-  .app .score-of { color: #555; }
-  .app .level { font-weight: 800; }
-  .app .next { border-left: 1vmin solid #d99a00; padding-left: 2.4vmin; font-weight: 700; }
-  .app .conf { color: #444; font-weight: 700; }
+  #corner b { color: var(--accent); font-weight: 900; }
+  body.corner #corner { opacity: 1; }
 
   #pause {
-    position: fixed; top: 3vmin; right: 3vw; display: none; z-index: 20;
-    border: 3px solid var(--accent); border-radius: 1.6vmin; padding: 1vmin 2.4vmin;
+    position: fixed; top: calc(var(--u) * 3); right: 3vw; display: none; z-index: 20;
+    border: 3px solid var(--accent); border-radius: calc(var(--u) * 1.6);
+    padding: calc(var(--u) * 1) calc(var(--u) * 2.4);
     background: var(--bg); color: var(--accent); font-weight: 800;
+    font-size: calc(var(--u) * 3.2);
   }
   body.paused #pause { display: block; }
 
   #hint {
-    position: fixed; right: 3vw; bottom: 2.5vmin; color: #8a8a8a;
-    font-size: clamp(14px, 2vmin, 26px); font-weight: 600; transition: opacity .6s ease;
+    position: fixed; right: 3vw; bottom: calc(var(--u) * 3.2); color: #8a8a8a;
+    font-size: calc(var(--u) * 2.2); font-weight: 600; transition: opacity .6s ease;
   }
 
   @media (orientation: portrait) {
-    .scene { padding: 8vmin 6vw; }
-    .live-grid { grid-template-columns: 1fr; }
-    .scorebox { justify-items: start; text-align: left; }
+    :root { --u: 1.05vw; }
+    .scene { padding: 12vh 6vw; }
+    .line { font-size: calc(var(--u) * 8); }
+    .line.past { font-size: calc(var(--u) * 4.6); }
+    .beat { font-size: calc(var(--u) * 12); }
+    #corner, #hint { font-size: calc(var(--u) * 3.4); }
   }
   @media (prefers-reduced-motion: reduce) {
     [data-at] { transform: none; transition: opacity .2s linear; }
+    .beat .rec { animation: none; }
   }
 </style>
 </head>
 <body>
 <div id="progress" role="progressbar" aria-label="Film progress" aria-valuemin="0" aria-valuemax="60" aria-valuenow="0"></div>
 
-<!-- 0–5s: Title -->
-<section class="scene" data-start="0" data-end="5">
-  <div class="kicker" data-at="0.2">Petr Kubelka</div>
-  <div class="xl" data-at="0.6">Relay.</div>
-  <div class="m muted" data-at="1.8">Know if your pitch landed<br>while you can still fix it.</div>
-</section>
-
-<!-- 5–14s: The problem -->
-<section class="scene" data-start="5" data-end="14">
-  <div class="l" data-at="0.2">You pitch.</div>
-  <div class="l" data-at="1.6">You sit down.</div>
-  <div class="l accent" data-at="3.2">Then you learn it failed.</div>
-  <div class="m muted" data-at="5.6">The feedback arrives after the chance to use it.</div>
-</section>
-
-<!-- 14–26s: Talk as long as you want, the score updates live -->
-<section class="scene" data-start="14" data-end="26">
-  <div class="l" data-at="0.1">So I built Relay.</div>
-  <div class="m accent" data-at="1.4">Talk for as long as you want.<br>The score updates while you speak.</div>
-  <div class="live-grid" data-at="3">
-    <div class="transcript" id="transcript"></div>
-    <div class="scorebox">
-      <span class="badge s"><span class="dot"></span>Live score</span>
-      <span class="score-num" id="live-score">0.0</span>
-    </div>
+<!-- 0:00 -->
+<section class="scene" data-start="0" data-end="12">
+  <div class="lockup" data-at="0">
+    <div class="name">Petr Kubelka</div>
+    <div class="brand">Relay</div>
   </div>
+  <p class="line" data-at="0.3">Developers ship the product, then lose the room.</p>
+  <p class="line" data-at="5.4">They find out the pitch failed after they sit down.</p>
 </section>
 
-<!-- 26–34s: The score locks -->
-<section class="scene" data-start="26" data-end="34">
-  <div class="l" data-at="0.1">The score locks</div>
-  <div class="m" data-at="1.4">when you hit <span class="accent">Stop</span>,</div>
-  <div class="m" data-at="2.8">or when a long pause has <span class="accent">no words</span>.</div>
-  <div class="score-row" data-at="4.4">
-    <span class="score-num">3.1</span>
-    <span class="badge locked s"><span class="dot"></span>Locked</span>
-  </div>
+<!-- 0:12 -->
+<section class="scene" data-start="12" data-end="32">
+  <p class="line" data-at="0.2"><span class="accent">Relay</span> is the rehearsal.</p>
+  <p class="line" data-at="2.3">You talk for as long as you need.</p>
+  <p class="line" data-at="6.5">The transcript runs in front of you.</p>
+  <p class="line" data-at="10.3"><span class="accent">A score moves while you are still speaking:</span> how well this pitch explains an idea that helps developers.</p>
 </section>
 
-<!-- 34–40s: One overall score -->
-<section class="scene" data-start="34" data-end="40">
-  <div class="kicker" data-at="0.1">One overall score</div>
-  <div class="l" data-at="0.6">How well does this pitch explain an idea that helps developers?</div>
-  <div class="score-row" data-at="2.4"><span class="score-num">3.1</span><span class="score-of">/ 4</span></div>
-  <div class="m muted" data-at="3.4">A developer would understand the idea and why it helps.</div>
+<!-- 0:32 -->
+<section class="scene" data-start="32" data-end="48">
+  <p class="line" data-at="0.2">You press <span class="accent">stop</span> when you are done.</p>
+  <p class="line" data-at="3.2">A long pause with no words locks it too.</p>
+  <p class="line" data-at="7.0">Then one sentence: <span class="accent">the next line to fix.</span></p>
+  <p class="line" data-at="10.4">The recording and the session stay, so the next take can be better.</p>
 </section>
 
-<!-- 40–45s: One sentence to improve -->
-<section class="scene" data-start="40" data-end="45">
-  <div class="m" data-at="0.1">Then <span class="accent">one sentence</span> on what to improve:</div>
-  <div class="l quote" data-at="1.0">“Open with the moment a developer feels the pain, then show the fix.”</div>
+<!-- 0:48 -->
+<section class="scene" data-start="48" data-end="60" data-hold>
+  <p class="line" data-at="0.2">I am pitching <span class="accent">Relay</span> on <span class="accent">Relay</span>.</p>
+  <p class="line" data-at="2.4">A developer should leave knowing what it is, why it helps, and what to do next.</p>
+  <p class="beat" data-at="8.2" data-group="beats"><span class="rec" aria-hidden="true"></span>Talk.</p>
+  <p class="beat" data-at="9.3" data-group="beats"><span class="underline">Watch the score move.</span></p>
+  <p class="beat stop" data-at="10.8" data-group="beats">Stop.</p>
 </section>
 
-<!-- 45–52s: Saved -->
-<section class="scene" data-start="45" data-end="52">
-  <div class="xl" data-at="0.1">Saved.</div>
-  <div class="rows">
-    <div class="row m" data-at="1.2"><span class="tick">✓</span><span>The recording</span></div>
-    <div class="row m" data-at="2.4"><span class="tick">✓</span><span>The session: transcript, score, next step</span></div>
-  </div>
-  <div class="m muted" data-at="4.0">Come back to any attempt and compare.</div>
-</section>
-
-<!-- 52–60s: Working product, score on screen, hold -->
-<section class="scene" data-start="52" data-end="60" data-hold>
-  <div class="m" data-at="0">This is the working product.</div>
-  <div class="app" data-at="0.5">
-    <div class="app-bar s"><span>Relay · Petr Kubelka</span><span class="lock">■ Score locked</span></div>
-    <div class="app-body">
-      <div class="score-row"><span class="score-num">3.1</span><span class="score-of">/ 4</span><span class="conf s">82% confident</span></div>
-      <div class="level m">A developer would understand the idea and why it helps.</div>
-      <div class="next s">Next: Open with the moment a developer feels the pain, then show the fix.</div>
-    </div>
-  </div>
-</section>
-
-<div id="pause" class="s">Paused · Space to resume</div>
+<div id="corner">Petr Kubelka · <b>Relay</b></div>
+<div id="pause">Paused · Space to resume</div>
 <div id="hint">Space: pause / resume</div>
 
 <script>
@@ -215,42 +170,28 @@
       start: parseFloat(el.dataset.start),
       end: parseFloat(el.dataset.end),
       hold: el.hasAttribute('data-hold'),
-      items: Array.prototype.slice.call(el.querySelectorAll('[data-at]')).map(function (it) {
-        return { el: it, at: parseFloat(it.dataset.at) };
+      items: Array.prototype.slice.call(el.querySelectorAll('[data-at]')).map(function (it, i) {
+        return {
+          el: it,
+          at: parseFloat(it.dataset.at),
+          line: it.classList.contains('line'),
+          group: it.dataset.group || String(i)
+        };
       })
     };
   });
 
   var progress = document.getElementById('progress');
   var hint = document.getElementById('hint');
-  var transcript = document.getElementById('transcript');
-  var liveScore = document.getElementById('live-score');
-
-  var WORDS = ('Every hackathon you find out after you sit down. Relay listens while you pitch, ' +
-    'writes what you say, and scores it as you go, so you fix the pitch before the judges hear it.').split(' ');
-  // The live score moves up and down as more of the pitch is heard.
-  var LIVE = [0.4, 0.9, 1.3, 1.1, 1.7, 2.2, 2.0, 2.6, 2.9, 3.1];
-  var SPEAK_FROM = 3.4, SPEAK_TO = 11.4;
-
-  function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
-
-  function renderLive(lt) {
-    var p = clamp01((lt - SPEAK_FROM) / (SPEAK_TO - SPEAK_FROM));
-    transcript.innerHTML = '';
-    transcript.appendChild(document.createTextNode(WORDS.slice(0, Math.round(WORDS.length * p)).join(' ')));
-    var caret = document.createElement('span');
-    caret.className = 'caret';
-    transcript.appendChild(caret);
-    liveScore.textContent = p > 0 ? LIVE[Math.min(LIVE.length - 1, Math.floor(p * LIVE.length))].toFixed(1) : '–';
-  }
-
-  var dynamic = { 14: renderLive };
   var paused = false;
 
-  function render(t) {
+  // Items are display:none until shown so layout reserves no space for unrevealed
+  // sentences; "on" is applied a frame later so the fade-in transition runs.
+  function render(t, instant) {
     progress.style.width = (t / DURATION * 100) + '%';
     progress.setAttribute('aria-valuenow', Math.floor(t));
     hint.style.opacity = t < 4 || paused ? 1 : 0;
+    document.body.classList.toggle('corner', t >= 12);
 
     for (var i = 0; i < scenes.length; i++) {
       var sc = scenes[i];
@@ -258,10 +199,18 @@
       sc.el.classList.toggle('active', active);
       if (!active) continue;
       var lt = t - sc.start;
+      var latestGroup = null;
       for (var j = 0; j < sc.items.length; j++) {
-        sc.items[j].el.classList.toggle('on', lt >= sc.items[j].at);
+        if (lt >= sc.items[j].at) latestGroup = sc.items[j].group;
       }
-      if (dynamic[sc.start]) dynamic[sc.start](lt);
+      for (var k = 0; k < sc.items.length; k++) {
+        var it = sc.items[k];
+        var reached = lt >= it.at;
+        if (reached && (instant || it.el.classList.contains('shown'))) it.el.classList.add('on');
+        else if (!reached) it.el.classList.remove('on');
+        it.el.classList.toggle('shown', reached);
+        if (it.line) it.el.classList.toggle('past', reached && it.group !== latestGroup);
+      }
     }
   }
 
@@ -292,7 +241,7 @@
     setPaused(!paused);
   });
 
-  render(t);
+  render(t, true);
   requestAnimationFrame(frame);
 })();
 </script>

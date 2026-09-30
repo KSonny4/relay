@@ -25,14 +25,13 @@ Then open http://127.0.0.1:43125/.
 
 ## Scenes
 
-| Time | Scene |
-| --- | --- |
-| 0–5 s | Title: Petr Kubelka. Relay. |
-| 5–14 s | The problem: you only learn the pitch failed after you sit down |
-| 14–26 s | What he built: talk for as long as you want, and the score updates while you speak |
-| 26–34 s | The score locks when you hit Stop, or when a long pause has no words |
-| 34–45 s | One overall score for how well the pitch explains an idea that helps developers, then one sentence on what to improve |
-| 45–52 s | The recording and the session are saved |
-| 52–60 s | The working product with the score on screen. The last frame holds. |
+The words on screen are the "60 seconds" section of the pitch (`docs/pitch.md` in the project store), word for word. The film adds no other copy. The pitch's timestamps are the scene cuts. Sentences appear one at a time at roughly speaking pace (about 150 words a minute). The current sentence is large and bright. Earlier sentences in the same scene shrink and dim.
 
-The score, transcript, and recommendation are sample values written into the page. The live app produces real ones.
+| Time | On screen |
+| --- | --- |
+| 0:00–0:12 | Title lockup: Petr Kubelka, Relay. Then: "Developers ship the product, then lose the room." "They find out the pitch failed after they sit down." |
+| 0:12–0:32 | "Relay is the rehearsal." "You talk for as long as you need." "The transcript runs in front of you." "A score moves while you are still speaking: how well this pitch explains an idea that helps developers." |
+| 0:32–0:48 | "You press stop when you are done." "A long pause with no words locks it too." "Then one sentence: the next line to fix." "The recording and the session stay, so the next take can be better." |
+| 0:48–1:00 | "I am pitching Relay on Relay." "A developer should leave knowing what it is, why it helps, and what to do next." Then three large beats: "Talk." "Watch the score move." "Stop." The last frame holds. |
+
+From 0:12 on, a small "Petr Kubelka · Relay" lockup stays in the bottom-left corner.
