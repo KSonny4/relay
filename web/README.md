@@ -1,6 +1,6 @@
 # Relay pitch
 
-A Relay pitch app that uses the width of a computer and reflows on a phone. One Record action starts a new take. While the microphone is open, the screen is the words and the score out of 10. History lists saved recordings. Opening one loads that session and shows the score and the next step.
+A Relay pitch app that uses the width of a computer and reflows on a phone. One Record action starts a new take. While the microphone is open, the screen is the words plus execution, usefulness, clarity, and their total out of 20. History lists each recording the same way. Opening one shows those criteria, the total, and the next step.
 
 ## Run
 

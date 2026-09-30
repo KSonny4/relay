@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Rating } from "@/components/rating";
+import { CriteriaScore } from "@/components/criteria-score";
 import { nextAttempt } from "@/lib/attempt-number";
 import { startLiveSession, type LiveSession } from "@/lib/deepgram-live";
 import {
@@ -12,6 +12,7 @@ import {
   fetchDeepgramAccessToken,
   listSessions,
 } from "@/lib/relay-api";
+import { emptyCriteria, type Criteria } from "@/lib/score-display";
 import {
   createClassifyPlan,
   nextWordsAt,
@@ -29,7 +30,7 @@ export function LiveTake() {
   const [phase, setPhase] = useState<Phase>("recording");
   const [finals, setFinals] = useState("");
   const [interim, setInterim] = useState("");
-  const [score, setScore] = useState<number | null>(null);
+  const [criteria, setCriteria] = useState<Criteria>(emptyCriteria);
   const [error, setError] = useState<string | null>(null);
   const finishRef = useRef<() => void>(() => {});
 
@@ -83,7 +84,7 @@ export function LiveTake() {
           if (aborted.current || takeId !== takeIdRef.current || generation !== classifyGenRef.current) {
             return;
           }
-          setScore(live.score);
+          setCriteria(live);
         })
         .catch((caught: unknown) => {
           if (aborted.current || takeId !== takeIdRef.current || generation !== classifyGenRef.current) {
@@ -252,7 +253,7 @@ export function LiveTake() {
   return (
     <div className="flex min-h-dvh flex-col bg-white text-black md:grid md:h-dvh md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:overflow-hidden">
       <section className="flex flex-col gap-10 border-b border-black/10 px-[clamp(1.25rem,4vw,4rem)] py-[clamp(1.5rem,4vw,4rem)] md:justify-between md:border-r md:border-b-0">
-        <Rating score={score} pending={score === null} />
+        <CriteriaScore criteria={criteria} />
         <div>
           {error ? (
             <p role="alert" className="mb-6 text-sm">

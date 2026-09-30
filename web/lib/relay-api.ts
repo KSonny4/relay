@@ -1,4 +1,5 @@
 import { resolveRelayApiBase } from "./relay-api-base";
+import { readCriteria, type Criteria } from "./score-display";
 import { liveClassifyPayload } from "./take-rules";
 
 export { LIVE_RELAY_API_BASE, resolveRelayApiBase } from "./relay-api-base";
@@ -7,19 +8,12 @@ export const RELAY_API_BASE = resolveRelayApiBase(process.env.NEXT_PUBLIC_RELAY_
 
 export type Attempt = number;
 
-export type LiveScore = {
-  score: number;
-  level: string;
-  confidence: number;
-};
+export type LiveScore = Criteria;
 
-export type Classification = {
+export type Classification = Criteria & {
   id: string;
   attempt: Attempt;
-  score: number;
-  level: string;
-  confidence: number;
-  recommendation: string;
+  recommendation: string | null;
 };
 
 export type SessionRecord = Classification & {
@@ -125,20 +119,7 @@ function parseLiveScore(body: unknown): LiveScore {
   if (!isRecord(body)) {
     throw new Error("Live score response was not an object.");
   }
-  if (typeof body.score !== "number") {
-    throw new Error("Live score response was missing score.");
-  }
-  if (typeof body.level !== "string") {
-    throw new Error("Live score response was missing level.");
-  }
-  if (typeof body.confidence !== "number") {
-    throw new Error("Live score response was missing confidence.");
-  }
-  return {
-    score: body.score,
-    level: body.level,
-    confidence: body.confidence,
-  };
+  return readCriteria(body);
 }
 
 function parseClassification(body: unknown): Classification {
@@ -152,25 +133,11 @@ function parseClassification(body: unknown): Classification {
   if (typeof attempt !== "number" || !Number.isInteger(attempt) || attempt < 1) {
     throw new Error("Classification response had an invalid attempt.");
   }
-  if (typeof body.score !== "number") {
-    throw new Error("Classification response was missing score.");
-  }
-  if (typeof body.level !== "string") {
-    throw new Error("Classification response was missing level.");
-  }
-  if (typeof body.confidence !== "number") {
-    throw new Error("Classification response was missing confidence.");
-  }
-  if (typeof body.recommendation !== "string") {
-    throw new Error("Classification response was missing recommendation.");
-  }
   return {
     id: body.id,
     attempt,
-    score: body.score,
-    level: body.level,
-    confidence: body.confidence,
-    recommendation: body.recommendation,
+    recommendation: typeof body.recommendation === "string" ? body.recommendation : null,
+    ...readCriteria(body),
   };
 }
 

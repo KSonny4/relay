@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Relay",
-  description: "Record a pitch. The score updates while you speak.",
+  description: "Record a pitch. Execution, usefulness, and clarity update while you speak.",
 };
 
 export default function RootLayout({

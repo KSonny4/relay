@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DeskFrame } from "@/components/desk-frame";
 import { nextAttempt } from "@/lib/attempt-number";
 import { classifySession, listSessions, type SessionRecord } from "@/lib/relay-api";
-import { formatScoreOutOfTen } from "@/lib/score-display";
+import { shownCriterion, shownTotal } from "@/lib/score-display";
 
 export function HistoryScreen() {
   const router = useRouter();
@@ -78,12 +78,23 @@ export function HistoryScreen() {
               <li key={session.id} className="border-b border-black/10">
                 <Link
                   href={`/sessions/${session.id}`}
-                  className="flex items-baseline justify-between gap-4 py-4 text-base md:gap-16 md:py-5 md:text-lg"
+                  className="flex flex-col gap-3 py-4 md:flex-row md:items-baseline md:justify-between md:gap-8 md:py-5"
                 >
-                  <time dateTime={session.createdAt} className="min-w-0">
+                  <time dateTime={session.createdAt} className="shrink-0 text-base md:text-lg">
                     {formatSessionTime(session.createdAt)}
                   </time>
-                  <span className="shrink-0 tabular-nums">{formatScoreOutOfTen(session.score)}</span>
+                  <span className="flex min-w-0 flex-1 flex-wrap gap-x-5 gap-y-1 text-sm md:text-base">
+                    <span>
+                      Execution <span className="tabular-nums">{shownCriterion(session.execution)}</span>
+                    </span>
+                    <span>
+                      Usefulness <span className="tabular-nums">{shownCriterion(session.usefulness)}</span>
+                    </span>
+                    <span>
+                      Clarity <span className="tabular-nums">{shownCriterion(session.clarity)}</span>
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-lg tabular-nums">{shownTotal(session)}</span>
                 </Link>
               </li>
             ))}
