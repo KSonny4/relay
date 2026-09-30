@@ -19,7 +19,8 @@ import {
   takeEnds,
   type ClassifyPlan,
 } from "@/lib/take-rules";
-import { isPresentMode, presentedTakeAction } from "@/lib/present-mode";
+import { isPresentMode } from "@/lib/present-mode";
+import { consumePresentedStart, retainPresentedStart, setPresentedHandler } from "@/lib/present-queue";
 import { emptyScript, type TranscriptScript } from "@/lib/transcript-script";
 
 type Phase = "recording" | "classifying";
@@ -274,31 +275,34 @@ export function LiveTake() {
       setError(null);
     }
 
-    const present = isPresentMode(window.location.search);
-    function onReelMessage(event: MessageEvent) {
-      const action = presentedTakeAction({
-        origin: event.origin,
-        data: event.data,
-        recording: recordingRef.current,
-      });
-      if (action === "start") {
+    function onPresented(command: "start" | "stop") {
+      if (command === "start") {
         const restarting = takeGeneration !== 0;
         startTake();
         if (restarting) resetVisibleTake();
         return;
       }
-      if (action === "stop") void finish(takeGeneration);
+      if (recordingRef.current) void finish(takeGeneration);
     }
 
+    const present = isPresentMode(window.location.search);
+    const unsubscribe = present ? setPresentedHandler(onPresented) : () => {};
+    let queuedStart = false;
     if (present) {
-      window.addEventListener("message", onReelMessage);
+      if (consumePresentedStart()) {
+        queuedStart = true;
+        startTake();
+      }
     } else {
       startTake();
     }
 
     return () => {
       aborted.current = true;
-      if (present) window.removeEventListener("message", onReelMessage);
+      unsubscribe();
+      if (queuedStart && !recordingRef.current && !finishingRef.current) {
+        retainPresentedStart();
+      }
       finishRef.current = () => {};
       if (!finishingRef.current) releaseMedia();
     };

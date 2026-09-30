@@ -7,6 +7,23 @@ export function isPresentMode(search: string): boolean {
   return new URLSearchParams(query).get("present") === "1";
 }
 
+export function readPresentedCommand(input: {
+  origin: string;
+  data: unknown;
+}): PresentedTakeAction | null {
+  if (input.origin !== REEL_ORIGIN) return null;
+  if (!input.data || typeof input.data !== "object") return null;
+  const type = (input.data as { type?: unknown }).type;
+  if (type === "relay:start-recording") return "start";
+  if (type === "relay:stop-recording") return "stop";
+  return null;
+}
+
+/** The deck embeds the recordings list. Start has to open the record page, like Record. */
+export function presentedStartOpensRecord(pathname: string): boolean {
+  return pathname !== "/record" && !pathname.startsWith("/record/");
+}
+
 /**
  * Start always requests a new take, even when one is already running.
  * Stop matches the on-screen Stop button, and only while audio is recording.
@@ -16,10 +33,7 @@ export function presentedTakeAction(input: {
   data: unknown;
   recording: boolean;
 }): PresentedTakeAction | null {
-  if (input.origin !== REEL_ORIGIN) return null;
-  if (!input.data || typeof input.data !== "object") return null;
-  const type = (input.data as { type?: unknown }).type;
-  if (type === "relay:start-recording") return "start";
-  if (type === "relay:stop-recording") return input.recording ? "stop" : null;
-  return null;
+  const command = readPresentedCommand(input);
+  if (command === "stop" && !input.recording) return null;
+  return command;
 }
